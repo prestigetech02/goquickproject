@@ -121,21 +121,189 @@ h2 {
   font-size: 0.9rem;
 }
 
-/* Auth */
-.auth-page {
+/* Auth shell — desktop split; mobile form only */
+.auth-shell {
   min-height: 100dvh;
   display: grid;
+  grid-template-columns: 1fr;
+  background: var(--color-bg);
+}
+
+.auth-shell-form {
+  display: grid;
   place-items: center;
-  padding: 24px 16px;
+  padding: 28px 16px 40px;
+  min-height: 100dvh;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(26, 122, 10, 0.18), transparent),
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(26, 122, 10, 0.12), transparent),
     var(--color-bg);
 }
 
+.auth-shell-form-scroll {
+  place-items: start center;
+  align-content: start;
+  padding-top: 36px;
+  overflow-y: auto;
+}
+
+.auth-shell-form-inner {
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth-shell-form-inner:has(.auth-card-wide) {
+  max-width: 520px;
+}
+
+.auth-shell-panel {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-primary);
+  color: #fff;
+  min-height: 100dvh;
+}
+
+.auth-shell-panel-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(160deg, var(--color-primary-dark) 0%, transparent 55%),
+    linear-gradient(20deg, rgba(255, 255, 255, 0.08), transparent 40%);
+  pointer-events: none;
+}
+
+.auth-shell-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 60% 40%, #000 20%, transparent 75%);
+  pointer-events: none;
+}
+
+.auth-shell-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(2px);
+  animation: auth-orb-float 12s ease-in-out infinite;
+}
+
+.auth-shell-orb-a {
+  width: 280px;
+  height: 280px;
+  top: -80px;
+  right: -60px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 70%);
+}
+
+.auth-shell-orb-b {
+  width: 200px;
+  height: 200px;
+  bottom: 12%;
+  left: -70px;
+  background: radial-gradient(circle, rgba(11, 56, 0, 0.45), transparent 70%);
+  animation-delay: -4s;
+}
+
+.auth-shell-orb-c {
+  width: 120px;
+  height: 120px;
+  top: 42%;
+  right: 18%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 70%);
+  animation-delay: -7s;
+}
+
+@keyframes auth-orb-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(12px, -18px, 0) scale(1.05);
+  }
+}
+
+.auth-shell-panel-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 48px 44px 40px;
+  animation: auth-panel-in 0.7s ease-out both;
+}
+
+@keyframes auth-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.auth-shell-brand {
+  width: auto;
+  height: 36px;
+  max-width: 150px;
+  object-fit: contain;
+  margin-bottom: 28px;
+}
+
+.auth-shell-title {
+  margin: 0 0 28px;
+  font-size: clamp(1.75rem, 2.4vw, 2.35rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  max-width: 16ch;
+  color: #fff;
+}
+
+.auth-shell-art-wrap {
+  margin-top: auto;
+  max-width: 420px;
+}
+
+.auth-shell-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  mix-blend-mode: screen;
+  transform: scaleX(-1);
+}
+
+@media (min-width: 960px) {
+  .auth-shell {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .auth-shell-form {
+    min-height: 100dvh;
+    padding: 40px 48px;
+  }
+
+  .auth-shell-panel {
+    display: block;
+  }
+}
+
+/* Auth */
+.auth-page {
+  width: 100%;
+}
+
 .auth-page-scroll {
-  align-items: start;
-  padding-top: 32px;
-  padding-bottom: 48px;
+  /* kept for compatibility; prefer auth-shell-form-scroll */
 }
 
 .auth-card {

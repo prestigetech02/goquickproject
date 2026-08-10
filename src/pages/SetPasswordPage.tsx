@@ -65,37 +65,35 @@ export function SetPasswordPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
-        <h1>Create a password</h1>
-        <p className="muted">
-          Your phone is verified. Set a password so you can sign in next time.
-        </p>
+    <div className="auth-card">
+      <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
+      <h1>Create a password</h1>
+      <p className="muted">
+        Your phone is verified. Set a password so you can sign in next time.
+      </p>
 
-        <form onSubmit={handleSubmit} className="stack">
-          <PasswordInput
-            id="password"
-            label="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-          />
-          <PasswordInput
-            id="confirmPassword"
-            label="Confirm password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-          />
-          {error ? <p className="error">{error}</p> : null}
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? "Saving…" : "Continue to dashboard"}
-          </button>
-        </form>
-      </div>
+      <form onSubmit={handleSubmit} className="stack">
+        <PasswordInput
+          id="password"
+          label="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="new-password"
+        />
+        <PasswordInput
+          id="confirmPassword"
+          label="Confirm password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          autoComplete="new-password"
+        />
+        {error ? <p className="error">{error}</p> : null}
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? "Saving…" : "Continue to dashboard"}
+        </button>
+      </form>
     </div>
   );
 }

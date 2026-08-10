@@ -75,77 +75,75 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
-        <h1>Reset password</h1>
+    <div className="auth-card">
+      <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
+      <h1>Reset password</h1>
 
-        {done ? (
-          <>
-            <p className="info">Password updated. You can sign in now.</p>
-            <Link to="/login" className="btn-primary">
-              Back to sign in
-            </Link>
-          </>
-        ) : step === "phone" ? (
-          <>
-            <p className="muted">We’ll send a code to your phone.</p>
-            <form onSubmit={handleSend} className="stack">
-              <label htmlFor="phone">Phone number</label>
-              <input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="08012345678"
-                required
-              />
-              {error ? <p className="error">{error}</p> : null}
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? "Sending…" : "Send code"}
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <p className="muted">Enter the code and your new password.</p>
-            <form onSubmit={handleReset} className="stack">
-              <label htmlFor="otp">OTP</label>
-              <input
-                id="otp"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                maxLength={5}
-                required
-              />
-              <PasswordInput
-                id="password"
-                label="New password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-              />
-              <PasswordInput
-                id="confirm"
-                label="Confirm password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-                autoComplete="new-password"
-              />
-              {error ? <p className="error">{error}</p> : null}
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? "Saving…" : "Update password"}
-              </button>
-            </form>
-          </>
-        )}
+      {done ? (
+        <>
+          <p className="info">Password updated. You can sign in now.</p>
+          <Link to="/login" className="btn-primary">
+            Back to sign in
+          </Link>
+        </>
+      ) : step === "phone" ? (
+        <>
+          <p className="muted">We’ll send a code to your phone.</p>
+          <form onSubmit={handleSend} className="stack">
+            <label htmlFor="phone">Phone number</label>
+            <input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="08012345678"
+              required
+            />
+            {error ? <p className="error">{error}</p> : null}
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? "Sending…" : "Send code"}
+            </button>
+          </form>
+        </>
+      ) : (
+        <>
+          <p className="muted">Enter the code and your new password.</p>
+          <form onSubmit={handleReset} className="stack">
+            <label htmlFor="otp">OTP</label>
+            <input
+              id="otp"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              maxLength={5}
+              required
+            />
+            <PasswordInput
+              id="password"
+              label="New password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
+            <PasswordInput
+              id="confirm"
+              label="Confirm password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
+            {error ? <p className="error">{error}</p> : null}
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? "Saving…" : "Update password"}
+            </button>
+          </form>
+        </>
+      )}
 
-        <p className="auth-footer-text">
-          <Link to="/login">Back to sign in</Link>
-        </p>
-      </div>
+      <p className="auth-footer-text">
+        <Link to="/login">Back to sign in</Link>
+      </p>
     </div>
   );
 }

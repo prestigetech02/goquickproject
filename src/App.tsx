@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
+import { AuthLayout } from "./components/AuthLayout";
 import {
   CompleteProfileRoute,
   GuestRoute,
@@ -33,22 +34,24 @@ import { SignupPage } from "./pages/SignupPage";
 export default function App() {
   return (
     <Routes>
-      <Route element={<GuestRoute />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/account-success" element={<AccountSuccessPage />} />
-      </Route>
+      <Route element={<AuthLayout />}>
+        <Route element={<GuestRoute />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/account-success" element={<AccountSuccessPage />} />
+        </Route>
 
-      <Route element={<SetPasswordRoute />}>
-        <Route path="/set-password" element={<SetPasswordPage />} />
-      </Route>
+        <Route element={<SetPasswordRoute />}>
+          <Route path="/set-password" element={<SetPasswordPage />} />
+        </Route>
 
-      <Route element={<CompleteProfileRoute />}>
-        <Route path="/complete-profile" element={<CompleteProfilePage />} />
-      </Route>
+        <Route element={<CompleteProfileRoute />}>
+          <Route path="/complete-profile" element={<CompleteProfilePage />} />
+        </Route>
 
-      <Route path="/get-app" element={<GetAppPage />} />
+        <Route path="/get-app" element={<GetAppPage />} />
+      </Route>
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>

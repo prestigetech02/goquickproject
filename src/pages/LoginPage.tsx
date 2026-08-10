@@ -62,60 +62,58 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
-        <h1>Welcome back</h1>
-        <p className="muted">Sign in to post and manage your errands.</p>
+    <div className="auth-card">
+      <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
+      <h1>Welcome back</h1>
+      <p className="muted">Sign in to post and manage your errands.</p>
 
-        <form onSubmit={handleSubmit} className="stack">
-          <label htmlFor="phone">Phone number</label>
-          <input
-            id="phone"
-            type="tel"
-            inputMode="numeric"
-            placeholder="08012345678"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
-            autoComplete="tel"
-          />
+      <form onSubmit={handleSubmit} className="stack">
+        <label htmlFor="phone">Phone number</label>
+        <input
+          id="phone"
+          type="tel"
+          inputMode="numeric"
+          placeholder="08012345678"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          required
+          autoComplete="tel"
+        />
 
-          <PasswordInput
-            id="password"
-            label="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
+        <PasswordInput
+          id="password"
+          label="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+        />
 
-          <div className="row-between auth-options">
-            <label className="checkbox-label" htmlFor="remember-me">
-              <input
-                id="remember-me"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              Remember me
-            </label>
-            <Link to="/forgot-password" className="link">
-              Forgot password?
-            </Link>
-          </div>
+        <div className="row-between auth-options">
+          <label className="checkbox-label" htmlFor="remember-me">
+            <input
+              id="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            Remember me
+          </label>
+          <Link to="/forgot-password" className="link">
+            Forgot password?
+          </Link>
+        </div>
 
-          {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
 
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
 
-        <p className="auth-footer-text">
-          New here? <Link to="/signup">Create an account</Link>
-        </p>
-      </div>
+      <p className="auth-footer-text">
+        New here? <Link to="/signup">Create an account</Link>
+      </p>
     </div>
   );
 }

@@ -87,90 +87,88 @@ export function SignupPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
-        <h1>Create account</h1>
-        <p className="muted">
-          {step === "phone"
-            ? "Verify your phone to get started as a requester."
-            : `Enter the code sent to ${phone}.`}
-        </p>
+    <div className="auth-card">
+      <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
+      <h1>Create account</h1>
+      <p className="muted">
+        {step === "phone"
+          ? "Verify your phone to get started as a requester."
+          : `Enter the code sent to ${phone}.`}
+      </p>
 
-        {step === "phone" ? (
-          <form onSubmit={handleSendOtp} className="stack">
-            <label htmlFor="phone">Phone number</label>
+      {step === "phone" ? (
+        <form onSubmit={handleSendOtp} className="stack">
+          <label htmlFor="phone">Phone number</label>
+          <input
+            id="phone"
+            type="tel"
+            inputMode="numeric"
+            placeholder="08012345678"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+          />
+
+          <label className="checkbox-label terms-label" htmlFor="accept-terms">
             <input
-              id="phone"
-              type="tel"
-              inputMode="numeric"
-              placeholder="08012345678"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
+              id="accept-terms"
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
             />
+            <span>
+              I agree to the{" "}
+              <a href={`${config.landingUrl}/terms`} target="_blank" rel="noreferrer">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href={`${config.landingUrl}/privacy`} target="_blank" rel="noreferrer">
+                Privacy Policy
+              </a>
+            </span>
+          </label>
 
-            <label className="checkbox-label terms-label" htmlFor="accept-terms">
-              <input
-                id="accept-terms"
-                type="checkbox"
-                checked={acceptedTerms}
-                onChange={(e) => setAcceptedTerms(e.target.checked)}
-              />
-              <span>
-                I agree to the{" "}
-                <a href={`${config.landingUrl}/terms`} target="_blank" rel="noreferrer">
-                  Terms of Service
-                </a>{" "}
-                and{" "}
-                <a href={`${config.landingUrl}/privacy`} target="_blank" rel="noreferrer">
-                  Privacy Policy
-                </a>
-              </span>
-            </label>
+          {error ? <p className="error">{error}</p> : null}
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? "Sending…" : "Send code"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleVerifyOtp} className="stack">
+          <label htmlFor="otp">OTP code</label>
+          <input
+            id="otp"
+            type="text"
+            inputMode="numeric"
+            maxLength={5}
+            placeholder="12345"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            required
+          />
+          {info ? <p className="info">{info}</p> : null}
+          {error ? <p className="error">{error}</p> : null}
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? "Verifying…" : "Verify & continue"}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => {
+              setStep("phone");
+              setOtp("");
+              setError(null);
+              setInfo(null);
+            }}
+          >
+            Change number
+          </button>
+        </form>
+      )}
 
-            {error ? <p className="error">{error}</p> : null}
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? "Sending…" : "Send code"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="stack">
-            <label htmlFor="otp">OTP code</label>
-            <input
-              id="otp"
-              type="text"
-              inputMode="numeric"
-              maxLength={5}
-              placeholder="12345"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              required
-            />
-            {info ? <p className="info">{info}</p> : null}
-            {error ? <p className="error">{error}</p> : null}
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? "Verifying…" : "Verify & continue"}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => {
-                setStep("phone");
-                setOtp("");
-                setError(null);
-                setInfo(null);
-              }}
-            >
-              Change number
-            </button>
-          </form>
-        )}
-
-        <p className="auth-footer-text">
-          Already have an account? <Link to="/login">Sign in</Link>
-        </p>
-      </div>
+      <p className="auth-footer-text">
+        Already have an account? <Link to="/login">Sign in</Link>
+      </p>
     </div>
   );
 }
