@@ -55,7 +55,6 @@ import type { AppNotification } from "../types/notification";
 import type {
   ChatMessage,
   ChatMessagesPayload,
-  ChatThread,
   ChatThreadsPage,
 } from "../types/chat";
 import type { Errand, ErrandStatusFilter } from "../types/errand";
