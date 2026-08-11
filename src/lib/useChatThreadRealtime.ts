@@ -44,6 +44,7 @@ export function useChatThreadRealtime(threadId: number | null) {
 
   useEffect(() => {
     if (threadId == null || threadId <= 0) return;
+    const activeThreadId = threadId;
 
     const echo = getEcho();
     if (!echo) {
@@ -53,7 +54,7 @@ export function useChatThreadRealtime(threadId: number | null) {
       return;
     }
 
-    const channelName = `chat-thread.${threadId}`;
+    const channelName = `chat-thread.${activeThreadId}`;
     let cancelled = false;
     let typingClearTimer: number | null = null;
 
@@ -68,7 +69,9 @@ export function useChatThreadRealtime(threadId: number | null) {
       if (cancelled) return;
       const payload = normalizeTyping(raw);
       if (!payload) return;
-      const cached = qc.getQueryData<ChatMessagesPayload>(queryKeys.chatMessages(threadId));
+      const cached = qc.getQueryData<ChatMessagesPayload>(
+        queryKeys.chatMessages(activeThreadId),
+      );
       const me = cached?.current_user_id ?? getStoredUser()?.id ?? 0;
       const userId = Number(payload.user_id) || 0;
       if (me > 0 && userId === me) return;
@@ -101,29 +104,29 @@ export function useChatThreadRealtime(threadId: number | null) {
         ".message.sent",
         (payload: { thread_id?: number; message?: Record<string, unknown> }) => {
           if (cancelled || !payload?.message) return;
-          const tid = Number(payload.thread_id) || threadId;
+          const tid = Number(payload.thread_id) || activeThreadId;
           upsertChatMessage(qc, tid, payload.message);
           setPeerTyping(false);
 
           const cached = qc.getQueryData<ChatMessagesPayload>(
-            queryKeys.chatMessages(threadId),
+            queryKeys.chatMessages(activeThreadId),
           );
           const me = cached?.current_user_id ?? 0;
           const senderId = Number(payload.message.sender_id) || 0;
           if (me > 0 && senderId !== me) {
-            void markChatThreadRead(threadId).then(() => {
+            void markChatThreadRead(activeThreadId).then(() => {
               qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
                 if (!old) return old;
                 return {
                   ...old,
                   pages: old.pages.map((page) => {
-                    const target = page.threads.find((t) => t.id === threadId);
+                    const target = page.threads.find((t) => t.id === activeThreadId);
                     const cleared = target?.unread_count ?? 0;
                     return {
                       ...page,
                       unread_total: Math.max(0, page.unread_total - cleared),
                       threads: page.threads.map((t) =>
-                        t.id === threadId
+                        t.id === activeThreadId
                           ? { ...t, unread_count: 0, missed_call_count: 0 }
                           : t,
                       ),
@@ -139,11 +142,11 @@ export function useChatThreadRealtime(threadId: number | null) {
       channel.listen(".message.read", () => {
         if (cancelled) return;
         const cached = qc.getQueryData<ChatMessagesPayload>(
-          queryKeys.chatMessages(threadId),
+          queryKeys.chatMessages(activeThreadId),
         );
         const me = cached?.current_user_id ?? 0;
         if (me > 0) {
-          markThreadMessagesRead(qc, threadId, me);
+          markThreadMessagesRead(qc, activeThreadId, me);
         }
       });
 
