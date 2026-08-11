@@ -157,7 +157,7 @@ export function ChatThreadPage() {
   const validId = Number.isFinite(threadId) && threadId > 0 ? threadId : null;
 
   const { data: threads = [] } = useChatThreadsQuery();
-  const { live } = useChatThreadRealtime(validId);
+  const { live, peerTyping, sendTyping } = useChatThreadRealtime(validId);
   const { data, error, isPending, isFetching } = useChatMessagesQuery(validId, { live });
   const markRead = useMarkChatReadMutation(validId ?? 0);
   const sendMutation = useSendChatMessageMutation(validId ?? 0);
@@ -190,6 +190,8 @@ export function ChatThreadPage() {
   const markedRef = useRef<number | null>(null);
   const prevLenRef = useRef(0);
   const stickBottomRef = useRef(true);
+  const typingActiveRef = useRef(false);
+  const typingStopTimerRef = useRef<number | null>(null);
 
   const grouped = useMemo(() => {
     const items: Array<{ type: "day"; label: string; key: string } | { type: "msg"; message: ChatMessage }> =
@@ -210,16 +212,51 @@ export function ChatThreadPage() {
     const prev = prevLenRef.current;
     const next = messages.length;
     // Only auto-scroll when messages grow at the end (not when older history is prepended)
-    if (stickBottomRef.current && next > prev) {
+    if (stickBottomRef.current && (next > prev || peerTyping)) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     prevLenRef.current = next;
-  }, [messages.length, validId]);
+  }, [messages.length, validId, peerTyping]);
 
   useEffect(() => {
     prevLenRef.current = 0;
     stickBottomRef.current = true;
   }, [validId]);
+
+  function stopTypingSignal() {
+    if (typingStopTimerRef.current) {
+      window.clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+    }
+    if (!typingActiveRef.current) return;
+    typingActiveRef.current = false;
+    sendTyping(false);
+  }
+
+  function notifyTyping() {
+    if (!typingActiveRef.current) {
+      typingActiveRef.current = true;
+      sendTyping(true);
+    }
+    if (typingStopTimerRef.current) {
+      window.clearTimeout(typingStopTimerRef.current);
+    }
+    typingStopTimerRef.current = window.setTimeout(() => {
+      stopTypingSignal();
+    }, 2000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (typingStopTimerRef.current) {
+        window.clearTimeout(typingStopTimerRef.current);
+      }
+      if (typingActiveRef.current) {
+        typingActiveRef.current = false;
+        sendTyping(false);
+      }
+    };
+  }, [validId, sendTyping]);
 
   async function handleLoadOlder() {
     const el = listRef.current;
@@ -261,6 +298,7 @@ export function ChatThreadPage() {
     if (!text && !pendingFile) return;
 
     setSendError(null);
+    stopTypingSignal();
     const cid = clientId();
     const replyId = replyTo?.id;
     const file = pendingFile;
@@ -327,15 +365,19 @@ export function ChatThreadPage() {
           </span>
           <span className="chat-thread-peer-text">
             <span className="chat-thread-name">{peerName}</span>
-            <span className={`chat-thread-status${isOnline ? " online" : ""}`}>
+            <span
+              className={`chat-thread-status${peerTyping || isOnline ? " online" : ""}`}
+            >
               <span className="chat-thread-status-dot" aria-hidden="true" />
-              {isOnline
-                ? "Active"
-                : errandId != null
-                  ? `Errand #${errandId}`
-                  : isFetching && !isPending
-                    ? "Updating…"
-                    : "Offline"}
+              {peerTyping
+                ? "Typing…"
+                : isOnline
+                  ? "Active"
+                  : errandId != null
+                    ? `Errand #${errandId}`
+                    : isFetching && !isPending
+                      ? "Updating…"
+                      : "Offline"}
             </span>
           </span>
         </div>
@@ -404,6 +446,46 @@ export function ChatThreadPage() {
                 />
               ),
             )}
+            {peerTyping ? (
+              <div className="msg-row theirs" aria-live="polite">
+                <span className="msg-avatar" aria-hidden="true">
+                  {picture ? (
+                    <img src={picture} alt="" />
+                  ) : (
+                    <span>{initial}</span>
+                  )}
+                </span>
+                <div className="msg-stack">
+                  <div className="msg-bubble msg-typing-bubble">
+                    <span className="msg-typing-dots" aria-label={`${peerName} is typing`}>
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            <div ref={bottomRef} />
+          </div>
+        ) : null}
+
+        {peerTyping && grouped.length === 0 && !isPending ? (
+          <div className="chat-messages">
+            <div className="msg-row theirs" aria-live="polite">
+              <span className="msg-avatar" aria-hidden="true">
+                {picture ? <img src={picture} alt="" /> : <span>{initial}</span>}
+              </span>
+              <div className="msg-stack">
+                <div className="msg-bubble msg-typing-bubble">
+                  <span className="msg-typing-dots" aria-label={`${peerName} is typing`}>
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </div>
+              </div>
+            </div>
             <div ref={bottomRef} />
           </div>
         ) : null}
@@ -467,7 +549,13 @@ export function ChatThreadPage() {
             rows={1}
             placeholder="Enter message..."
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setDraft(value);
+              if (value.trim()) notifyTyping();
+              else stopTypingSignal();
+            }}
+            onBlur={() => stopTypingSignal()}
             onKeyDown={onComposerKey}
           />
           <button

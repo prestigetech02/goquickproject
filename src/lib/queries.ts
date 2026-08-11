@@ -357,10 +357,13 @@ export function useChatMessagesQuery(threadId: number | null, options?: { live?:
   return useQuery({
     queryKey: queryKeys.chatMessages(threadId ?? 0),
     enabled: threadId != null && threadId > 0,
-    staleTime: 5 * 60 * 1000,
+    // Active thread should not sit on a long cache — realtime + short poll keep it fresh.
+    staleTime: 0,
     gcTime: 30 * 60 * 1000,
-    refetchOnMount: true,
-    refetchInterval: live ? false : 12_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    // Always soft-poll as a safety net; slower when the socket is confirmed live.
+    refetchInterval: live ? 15_000 : 5_000,
     queryFn: async () => {
       const tid = threadId!;
       const existing = qc.getQueryData<ChatMessagesPayload>(queryKeys.chatMessages(tid));
@@ -671,6 +674,9 @@ export function useAcceptOfferMutation(errandId: number) {
       qc.setQueryData(queryKeys.errand(errandId), errand);
       void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
       void qc.invalidateQueries({ queryKey: ["errands"] });
+      // Escrow debit happens on accept — refresh wallet balance + ledger.
+      void qc.invalidateQueries({ queryKey: queryKeys.wallet });
+      void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions });
     },
   });
 }

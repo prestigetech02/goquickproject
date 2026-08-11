@@ -272,13 +272,3 @@ export async function markChatThreadRead(threadId: number): Promise<ApiResponse<
   const { data } = await http.post(`/chats/threads/${threadId}/read`);
   return data as ApiResponse<void>;
 }
-
-export async function setChatTyping(
-  threadId: number,
-  isTyping: boolean,
-): Promise<ApiResponse<void>> {
-  const { data } = await http.post(`/chats/threads/${threadId}/typing`, {
-    is_typing: isTyping,
-  });
-  return data as ApiResponse<void>;
-}

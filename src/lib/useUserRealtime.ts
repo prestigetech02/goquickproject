@@ -58,7 +58,12 @@ export function useUserRealtime() {
           void qc.invalidateQueries({ queryKey: ["errands"] });
           void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
         }
-        if (type.includes("wallet") || type.includes("payment") || type.includes("payout")) {
+        if (
+          type.includes("wallet") ||
+          type.includes("payment") ||
+          type.includes("payout") ||
+          type.includes("escrow")
+        ) {
           void qc.invalidateQueries({ queryKey: queryKeys.wallet });
           void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions });
         }
