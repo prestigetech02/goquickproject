@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_REVERB_HOST?: string;
   readonly VITE_REVERB_PORT?: string;
   readonly VITE_REVERB_SCHEME?: string;
+  readonly VITE_MAPBOX_ACCESS_TOKEN?: string;
 }
 
 interface ImportMeta {

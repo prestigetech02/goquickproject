@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrandCreatedModal } from "../components/ErrandCreatedModal";
 import { LocationPickerModal } from "../components/LocationPickerModal";
+import { useToast } from "../components/ToastProvider";
 import { getStoredUser } from "../lib/auth";
 import {
   estimateErrand,
@@ -14,6 +15,47 @@ import { useCreateErrandMutation, useErrandTypeSchemasQuery } from "../lib/queri
 import type { LocationPoint } from "../lib/placesApi";
 import { isProfileComplete } from "../types/api";
 import { formatNaira } from "../types/errand";
+
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const ATTACHMENT_ACCEPT_IMAGE = "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
+const ATTACHMENT_ACCEPT_FILE =
+  "image/jpeg,image/png,image/webp,application/pdf,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/wav,.jpg,.jpeg,.png,.webp,.pdf,.mp3,.m4a,.aac,.ogg,.wav";
+
+type PendingAttachment = {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+};
+
+function isAllowedAttachment(file: File) {
+  const mime = (file.type || "").toLowerCase();
+  const name = file.name.toLowerCase();
+  const allowedMimes = new Set([
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/aac",
+    "audio/ogg",
+    "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
+  ]);
+  const allowedExt = /\.(jpe?g|png|webp|pdf|mp3|m4a|aac|ogg|wav)$/i;
+  return allowedMimes.has(mime) || allowedExt.test(name);
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const FALLBACK_TYPES: ErrandTypeSchema[] = [
   {
@@ -74,6 +116,20 @@ function dropoffLabel(slug: string) {
   }
 }
 
+function descriptionPlaceholder(slug: string) {
+  switch (slug) {
+    case "shopping":
+      return "e.g. Buy 2kg rice, 4 tomatoes, and Peak milk from Shoprite";
+    case "pickup_drop":
+    case "delivery":
+      return "e.g. Pick up a small package from Jane at the gate and deliver to my office";
+    case "queue":
+      return "e.g. Queue at PHCN to pay my electricity bill and collect the receipt";
+    default:
+      return "e.g. Help me get my laundry from the dry cleaner and bring it home";
+  }
+}
+
 function buildTitle(slug: string, description: string, typeName: string) {
   const trimmed = description.trim();
   if (trimmed) return trimmed.slice(0, 120);
@@ -92,6 +148,7 @@ function buildTitle(slug: string, description: string, typeName: string) {
 
 export function NewErrandPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get("type")?.trim() || "custom";
 
@@ -117,14 +174,68 @@ export function NewErrandPage() {
   const [estimate, setEstimate] = useState<ErrandEstimate | null>(null);
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [zoneError, setZoneError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreateErrandResult | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isProfileComplete(getStoredUser())) {
       navigate("/complete-profile", { replace: true, state: { reason: "post_errand" } });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    return () => {
+      for (const item of pendingAttachments) {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      }
+    };
+    // Only revoke on unmount; individual removes revoke their own URLs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function addAttachmentFiles(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const incoming = Array.from(fileList);
+    const room = MAX_ATTACHMENTS - pendingAttachments.length;
+    if (room <= 0) {
+      toast.error(`You can attach up to ${MAX_ATTACHMENTS} files.`);
+      return;
+    }
+
+    const next: PendingAttachment[] = [];
+    for (const file of incoming.slice(0, room)) {
+      if (!isAllowedAttachment(file)) {
+        toast.error(`“${file.name}” isn’t an allowed type. Use image, PDF, or audio.`);
+        continue;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        toast.error(`“${file.name}” is over 10 MB.`);
+        continue;
+      }
+      next.push({
+        id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+        file,
+        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+      });
+    }
+
+    if (incoming.length > room) {
+      toast.error(`Only ${MAX_ATTACHMENTS} attachments allowed. Extra files were skipped.`);
+    }
+    if (next.length) setPendingAttachments((prev) => [...prev, ...next]);
+  }
+
+  function removeAttachment(id: string) {
+    setPendingAttachments((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  }
 
   useEffect(() => {
     if (types.some((t) => t.slug === initialType)) {
@@ -149,6 +260,20 @@ export function NewErrandPage() {
       return;
     }
 
+    if (
+      pickup.resolving ||
+      dropoff.resolving ||
+      !Number.isFinite(pickup.latitude) ||
+      !Number.isFinite(pickup.longitude) ||
+      !Number.isFinite(dropoff.latitude) ||
+      !Number.isFinite(dropoff.longitude)
+    ) {
+      setEstimate(null);
+      setZoneError(null);
+      setEstimateLoading(Boolean(pickup.resolving || dropoff.resolving));
+      return;
+    }
+
     let cancelled = false;
     setEstimateLoading(true);
     setZoneError(null);
@@ -170,11 +295,10 @@ export function NewErrandPage() {
           } else {
             setZoneError(null);
             setEstimate(null);
-            setFormError(res.error?.message ?? "Could not estimate price.");
+            toast.error(res.error?.message ?? "Could not estimate price.");
           }
           return;
         }
-        setFormError(null);
         setEstimate(res.data);
         if (!res.data.service_zone?.serviceable) {
           setZoneError("This route is outside our service zones.");
@@ -190,29 +314,40 @@ export function NewErrandPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setFormError(null);
 
     if (!pickup) {
-      setFormError("Choose a pickup location.");
+      toast.error("Choose a pickup location.");
+      return;
+    }
+    if (pickup.resolving || !Number.isFinite(pickup.latitude) || !Number.isFinite(pickup.longitude)) {
+      toast.error("Still confirming pickup location…");
       return;
     }
     if (showDropoff && !dropoff) {
-      setFormError("Choose a drop-off location.");
+      toast.error("Choose a drop-off location.");
+      return;
+    }
+    if (
+      showDropoff &&
+      dropoff &&
+      (dropoff.resolving || !Number.isFinite(dropoff.latitude) || !Number.isFinite(dropoff.longitude))
+    ) {
+      toast.error("Still confirming drop-off location…");
       return;
     }
     if (zoneError) {
-      setFormError(zoneError);
+      toast.error(zoneError);
       return;
     }
     if (category === "queue") {
       const mins = Number(waitMinutes);
       if (!Number.isFinite(mins) || mins <= 0) {
-        setFormError("Enter expected wait time in minutes.");
+        toast.error("Enter expected wait time in minutes.");
         return;
       }
     }
     if (timing === "scheduled" && !scheduledAt) {
-      setFormError("Choose a scheduled date and time.");
+      toast.error("Choose a scheduled date and time.");
       return;
     }
 
@@ -236,16 +371,20 @@ export function NewErrandPage() {
         dropoff_latitude: showDropoff ? dropoff?.latitude ?? null : null,
         dropoff_longitude: showDropoff ? dropoff?.longitude ?? null : null,
         metadata: Object.keys(metadata).length ? metadata : null,
+        attachments:
+          pendingAttachments.length > 0
+            ? pendingAttachments.map((a) => a.file)
+            : undefined,
       });
       setCreated(result);
     } catch (err) {
       const code = (err as Error & { code?: string }).code;
       if (code === "INSUFFICIENT_BALANCE") {
-        setFormError("Insufficient wallet balance. Fund your wallet, then try again.");
+        toast.error("Insufficient wallet balance. Fund your wallet, then try again.");
       } else if (code === "ZONE_NOT_SERVICEABLE") {
-        setFormError(getApiErrorMessage(err, "This location is outside our service zones."));
+        toast.error(getApiErrorMessage(err, "This location is outside our service zones."));
       } else {
-        setFormError(getApiErrorMessage(err, "Could not create errand."));
+        toast.error(getApiErrorMessage(err, "Could not create errand."));
       }
     }
   }
@@ -296,7 +435,10 @@ export function NewErrandPage() {
             onClick={() => setPicker("pickup")}
           >
             <span className="muted">{pickupLabel(category)}</span>
-            <strong>{pickup?.address || "Choose location"}</strong>
+            <strong>
+              {pickup?.address || "Choose location"}
+              {pickup?.resolving ? "…" : ""}
+            </strong>
           </button>
           {showDropoff ? (
             <button
@@ -305,7 +447,10 @@ export function NewErrandPage() {
               onClick={() => setPicker("dropoff")}
             >
               <span className="muted">{dropoffLabel(category)}</span>
-              <strong>{dropoff?.address || "Choose location"}</strong>
+              <strong>
+                {dropoff?.address || "Choose location"}
+                {dropoff?.resolving ? "…" : ""}
+              </strong>
             </button>
           ) : null}
         </section>
@@ -316,7 +461,7 @@ export function NewErrandPage() {
             <span className="label">Description</span>
             <textarea
               rows={3}
-              placeholder="What should the runner do?"
+              placeholder={descriptionPlaceholder(category)}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -347,6 +492,102 @@ export function NewErrandPage() {
               onChange={(e) => setInstructions(e.target.value)}
             />
           </label>
+
+          <div className="new-errand-attachments">
+            <span className="label">Attachments (optional)</span>
+            <p className="muted new-errand-attachments-hint">
+              Add a photo, document, or take a picture so the runner has more context.
+            </p>
+
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept={ATTACHMENT_ACCEPT_IMAGE}
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                addAttachmentFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={(e) => {
+                addAttachmentFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ATTACHMENT_ACCEPT_FILE}
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                addAttachmentFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+
+            <div className="new-errand-attach-actions">
+              <button
+                type="button"
+                className="new-errand-attach-btn"
+                disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+                onClick={() => galleryInputRef.current?.click()}
+              >
+                Photo
+              </button>
+              <button
+                type="button"
+                className="new-errand-attach-btn"
+                disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                Camera
+              </button>
+              <button
+                type="button"
+                className="new-errand-attach-btn"
+                disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                File
+              </button>
+            </div>
+
+            {pendingAttachments.length > 0 ? (
+              <ul className="new-errand-attach-list">
+                {pendingAttachments.map((item) => (
+                  <li key={item.id} className="new-errand-attach-item">
+                    {item.previewUrl ? (
+                      <img src={item.previewUrl} alt="" className="new-errand-attach-thumb" />
+                    ) : (
+                      <span className="new-errand-attach-icon" aria-hidden>
+                        {item.file.type.startsWith("audio/") ? "AUD" : "DOC"}
+                      </span>
+                    )}
+                    <div className="new-errand-attach-meta">
+                      <span className="new-errand-attach-name">{item.file.name}</span>
+                      <span className="muted">{formatFileSize(item.file.size)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-ghost new-errand-attach-remove"
+                      aria-label={`Remove ${item.file.name}`}
+                      onClick={() => removeAttachment(item.id)}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
           <div className="new-errand-timing" role="radiogroup" aria-label="Preferred time">
             <button
@@ -400,7 +641,9 @@ export function NewErrandPage() {
                 <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
                   {estimate!.estimate.distance_km.toFixed(1)} km · ~{estimate!.estimate.duration_min}{" "}
                   min
-                  {estimate!.service_zone?.zone_name
+                  {estimate!.service_zone?.zone_name &&
+                  (estimate!.service_zone.source === "pickup_geo_match" ||
+                    estimate!.service_zone.source === "dropoff_geo_match")
                     ? ` · ${estimate!.service_zone.zone_name}`
                     : ""}
                 </p>
@@ -412,8 +655,6 @@ export function NewErrandPage() {
             )}
           </section>
         ) : null}
-
-        {formError ? <p className="error">{formError}</p> : null}
 
         <button
           type="submit"
@@ -432,6 +673,11 @@ export function NewErrandPage() {
             if (picker === "pickup") setPickup(point);
             else setDropoff(point);
             setPicker(null);
+          }}
+          onSelectFailed={(message) => {
+            if (picker === "pickup") setPickup(null);
+            else setDropoff(null);
+            toast.error(message);
           }}
         />
       ) : null}

@@ -41,20 +41,20 @@ export async function setPassword(password: string, passwordConfirmation: string
 export async function registerProfile(payload: {
   first_name: string;
   last_name: string;
+  email: string;
   address: string;
   city: string;
   state: string;
-  role: "buyer" | "runner";
   password?: string;
   referral_code?: string;
 }) {
   const body: Record<string, string> = {
     first_name: payload.first_name,
     last_name: payload.last_name,
+    email: payload.email,
     address: payload.address,
     city: payload.city,
     state: payload.state,
-    role: payload.role,
   };
   if (payload.password) body.password = payload.password;
   if (payload.referral_code) body.referral_code = payload.referral_code;

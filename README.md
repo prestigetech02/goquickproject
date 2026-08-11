@@ -35,6 +35,7 @@ php artisan serve --host=0.0.0.0 --port=8000
 | `VITE_PAYSTACK_PUBLIC_KEY` | Paystack public key (wallet funding) |
 | `VITE_PLAY_STORE_URL` / `VITE_APP_STORE_URL` | Runner “get the app” links |
 | `VITE_LANDING_URL` | Marketing site |
+| `VITE_MAPBOX_ACCESS_TOKEN` | Public Mapbox token (`pk.…`) for live tracking maps |
 | `VITE_BROADCAST_DRIVER` | `pusher` (default) or `reverb` — must match backend `BROADCAST_CONNECTION` |
 | `VITE_PUSHER_APP_KEY` / `VITE_PUSHER_APP_CLUSTER` | Pusher.com realtime (when driver is `pusher`) |
 | `VITE_REVERB_APP_KEY` / `VITE_REVERB_HOST` / `VITE_REVERB_PORT` / `VITE_REVERB_SCHEME` | Laravel Reverb (when driver is `reverb`) |

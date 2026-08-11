@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useToast } from "../components/ToastProvider";
 import { establishSession } from "../lib/auth";
 import { sendOtp, verifyOtp } from "../lib/authApi";
 import { config } from "../lib/config";
@@ -17,28 +18,25 @@ type Step = "phone" | "otp";
 
 export function SignupPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
 
   async function handleSendOtp(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-    setInfo(null);
 
     const normalized = normalizePhone(phone);
     if (!/^\d{11}$/.test(normalized)) {
-      setError("Enter a valid 11-digit Nigerian phone number.");
+      toast.error("Enter a valid 11-digit Nigerian phone number.");
       setLoading(false);
       return;
     }
     if (!acceptedTerms) {
-      setError("Please accept the Terms of Service and Privacy Policy.");
+      toast.error("Please accept the Terms of Service and Privacy Policy.");
       setLoading(false);
       return;
     }
@@ -47,9 +45,9 @@ export function SignupPage() {
       await sendOtp(normalized);
       setPhone(normalized);
       setStep("otp");
-      setInfo("We sent a 5-digit code to your phone.");
+      toast.success("We sent a 5-digit code to your phone.");
     } catch (err) {
-      setError(getApiErrorMessage(err, "Could not send OTP."));
+      toast.error(getApiErrorMessage(err, "Could not send OTP."));
     } finally {
       setLoading(false);
     }
@@ -58,12 +56,11 @@ export function SignupPage() {
   async function handleVerifyOtp(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     try {
       const res = await verifyOtp(phone, otp.trim());
       if (!res.success || !res.data?.token) {
-        setError(res.error?.message || "Invalid OTP.");
+        toast.error(res.error?.message || "Invalid OTP.");
         return;
       }
 
@@ -71,6 +68,8 @@ export function SignupPage() {
         ...res.data.user,
         has_password: res.data.user.has_password === true,
       });
+
+      toast.success("Phone verified.");
 
       if (res.data.user.has_password !== true) {
         navigate("/set-password", { replace: true });
@@ -80,7 +79,7 @@ export function SignupPage() {
         navigate("/", { replace: true });
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, "Could not verify OTP."));
+      toast.error(getApiErrorMessage(err, "Could not verify OTP."));
     } finally {
       setLoading(false);
     }
@@ -128,7 +127,6 @@ export function SignupPage() {
             </span>
           </label>
 
-          {error ? <p className="error">{error}</p> : null}
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? "Sending…" : "Send code"}
           </button>
@@ -146,8 +144,6 @@ export function SignupPage() {
             onChange={(e) => setOtp(e.target.value)}
             required
           />
-          {info ? <p className="info">{info}</p> : null}
-          {error ? <p className="error">{error}</p> : null}
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? "Verifying…" : "Verify & continue"}
           </button>
@@ -157,8 +153,6 @@ export function SignupPage() {
             onClick={() => {
               setStep("phone");
               setOtp("");
-              setError(null);
-              setInfo(null);
             }}
           >
             Change number

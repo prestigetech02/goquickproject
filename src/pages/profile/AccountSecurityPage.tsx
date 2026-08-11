@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProfileSubHeader } from "../../components/ProfileSubHeader";
+import { useToast } from "../../components/ToastProvider";
 import { clearSession } from "../../lib/auth";
 import { getApiErrorMessage } from "../../lib/http";
 import {
@@ -11,6 +12,7 @@ import {
 
 export function AccountSecurityPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const changePw = useChangePasswordMutation();
   const deactivate = useDeactivateAccountMutation();
   const remove = useDeleteAccountMutation();
@@ -18,24 +20,19 @@ export function AccountSecurityPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [pwError, setPwError] = useState<string | null>(null);
-  const [pwSaved, setPwSaved] = useState(false);
 
   const [dangerMode, setDangerMode] = useState<"deactivate" | "delete" | null>(null);
   const [dangerPassword, setDangerPassword] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
-  const [dangerError, setDangerError] = useState<string | null>(null);
 
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
-    setPwError(null);
-    setPwSaved(false);
     if (newPassword.length < 8) {
-      setPwError("New password must be at least 8 characters.");
+      toast.error("New password must be at least 8 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPwError("New passwords do not match.");
+      toast.error("New passwords do not match.");
       return;
     }
     try {
@@ -47,29 +44,30 @@ export function AccountSecurityPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setPwSaved(true);
+      toast.success("Password updated.");
     } catch (err) {
-      setPwError(getApiErrorMessage(err, "Failed to change password."));
+      toast.error(getApiErrorMessage(err, "Failed to change password."));
     }
   }
 
   async function handleDangerSubmit(e: FormEvent) {
     e.preventDefault();
-    setDangerError(null);
     if (!dangerPassword) {
-      setDangerError("Enter your password to continue.");
+      toast.error("Enter your password to continue.");
       return;
     }
     try {
       if (dangerMode === "deactivate") {
         await deactivate.mutateAsync(dangerPassword);
+        toast.success("Account deactivated.");
       } else if (dangerMode === "delete") {
         await remove.mutateAsync({ password: dangerPassword, reason: deleteReason.trim() });
+        toast.success("Account deletion requested.");
       }
       clearSession();
       navigate("/login", { replace: true });
     } catch (err) {
-      setDangerError(getApiErrorMessage(err, "Request failed."));
+      toast.error(getApiErrorMessage(err, "Request failed."));
     }
   }
 
@@ -114,9 +112,6 @@ export function AccountSecurityPage() {
           required
         />
 
-        {pwError ? <p className="error">{pwError}</p> : null}
-        {pwSaved ? <p className="success">Password updated.</p> : null}
-
         <button type="submit" className="btn-primary" disabled={changePw.isPending}>
           {changePw.isPending ? "Updating…" : "Update password"}
         </button>
@@ -132,7 +127,6 @@ export function AccountSecurityPage() {
             className="btn-ghost"
             onClick={() => {
               setDangerMode("deactivate");
-              setDangerError(null);
             }}
           >
             Deactivate account
@@ -142,7 +136,6 @@ export function AccountSecurityPage() {
             className="btn-ghost profile-danger-btn"
             onClick={() => {
               setDangerMode("delete");
-              setDangerError(null);
             }}
           >
             Delete account
@@ -175,7 +168,6 @@ export function AccountSecurityPage() {
               autoComplete="current-password"
               required
             />
-            {dangerError ? <p className="error">{dangerError}</p> : null}
             <div className="profile-danger-actions">
               <button type="button" className="btn-ghost" onClick={() => setDangerMode(null)}>
                 Cancel

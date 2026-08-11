@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { PasswordInput } from "../components/PasswordInput";
+import { useToast } from "../components/ToastProvider";
 import { confirmPasswordReset, sendPasswordReset } from "../lib/authApi";
 import { getApiErrorMessage } from "../lib/http";
 
@@ -15,22 +16,21 @@ function normalizePhone(value: string): string {
 type Step = "phone" | "reset";
 
 export function ForgotPasswordPage() {
+  const toast = useToast();
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   async function handleSend(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
     const normalized = normalizePhone(phone);
     if (!/^\d{11}$/.test(normalized)) {
-      setError("Enter a valid 11-digit Nigerian phone number.");
+      toast.error("Enter a valid 11-digit Nigerian phone number.");
       setLoading(false);
       return;
     }
@@ -38,8 +38,9 @@ export function ForgotPasswordPage() {
       await sendPasswordReset(normalized);
       setPhone(normalized);
       setStep("reset");
+      toast.success("Reset code sent to your phone.");
     } catch (err) {
-      setError(getApiErrorMessage(err, "Could not send reset code."));
+      toast.error(getApiErrorMessage(err, "Could not send reset code."));
     } finally {
       setLoading(false);
     }
@@ -48,14 +49,13 @@ export function ForgotPasswordPage() {
   async function handleReset(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      toast.error("Password must be at least 8 characters.");
       setLoading(false);
       return;
     }
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      toast.error("Passwords do not match.");
       setLoading(false);
       return;
     }
@@ -67,8 +67,9 @@ export function ForgotPasswordPage() {
         password_confirmation: confirm,
       });
       setDone(true);
+      toast.success("Password updated. You can sign in now.");
     } catch (err) {
-      setError(getApiErrorMessage(err, "Could not reset password."));
+      toast.error(getApiErrorMessage(err, "Could not reset password."));
     } finally {
       setLoading(false);
     }
@@ -81,7 +82,7 @@ export function ForgotPasswordPage() {
 
       {done ? (
         <>
-          <p className="info">Password updated. You can sign in now.</p>
+          <p className="muted">Your password has been updated.</p>
           <Link to="/login" className="btn-primary">
             Back to sign in
           </Link>
@@ -99,7 +100,6 @@ export function ForgotPasswordPage() {
               placeholder="08012345678"
               required
             />
-            {error ? <p className="error">{error}</p> : null}
             <button type="submit" className="btn-primary" disabled={loading}>
               {loading ? "Sending…" : "Send code"}
             </button>
@@ -133,7 +133,6 @@ export function ForgotPasswordPage() {
               required
               autoComplete="new-password"
             />
-            {error ? <p className="error">{error}</p> : null}
             <button type="submit" className="btn-primary" disabled={loading}>
               {loading ? "Saving…" : "Update password"}
             </button>

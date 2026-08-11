@@ -6,6 +6,8 @@ export const config = {
     "https://play.google.com/store/apps/details?id=com.goquick.app",
   appStoreUrl: import.meta.env.VITE_APP_STORE_URL || "https://apps.apple.com/app/goquick",
   landingUrl: import.meta.env.VITE_LANDING_URL || "https://goquickapp.com.ng",
+  /** Public Mapbox token for Mapbox GL JS (tiles only — never use the secret token here). */
+  mapboxAccessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || "",
   /** `pusher` (Pusher.com) or `reverb` (self-hosted Laravel Reverb). Must match backend BROADCAST_CONNECTION. */
   broadcastDriver: (import.meta.env.VITE_BROADCAST_DRIVER || "pusher").toLowerCase() as
     | "pusher"

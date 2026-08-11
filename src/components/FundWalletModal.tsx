@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useToast } from "./ToastProvider";
 import { getApiErrorMessage } from "../lib/http";
 import { useFundWalletMutation, useProfileQuery } from "../lib/queries";
 import { formatNaira } from "../types/errand";
@@ -12,11 +13,11 @@ type Props = {
 export function FundWalletModal({ onClose }: Props) {
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
   const { data: profile } = useProfileQuery();
   const fund = useFundWalletMutation();
 
   const [amount, setAmount] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -34,16 +35,15 @@ export function FundWalletModal({ onClose }: Props) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
     const parsed = Number(String(amount).replace(/,/g, ""));
     if (!Number.isFinite(parsed) || parsed < 1) {
-      setError("Enter a valid amount (min ₦1).");
+      toast.error("Enter a valid amount (min ₦1).");
       return;
     }
 
     const email = profile?.email?.trim();
     if (!email) {
-      setError("Add an email to your profile before funding your wallet.");
+      toast.error("Add an email to your profile before funding your wallet.");
       return;
     }
 
@@ -55,7 +55,7 @@ export function FundWalletModal({ onClose }: Props) {
       });
       window.location.assign(data.authorization_url!);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Could not start payment."));
+      toast.error(getApiErrorMessage(err, "Could not start payment."));
     }
   }
 
@@ -83,7 +83,9 @@ export function FundWalletModal({ onClose }: Props) {
           </button>
         </div>
 
-        <p className="muted wallet-fund-copy">Choose an amount or enter your own. You’ll pay securely with Paystack.</p>
+        <p className="muted wallet-fund-copy">
+          Choose an amount or enter your own. You’ll pay securely with Paystack.
+        </p>
 
         <div className="wallet-presets" role="group" aria-label="Suggested amounts">
           {PRESETS.map((value) => {
@@ -118,8 +120,6 @@ export function FundWalletModal({ onClose }: Props) {
               required
             />
           </label>
-
-          {error ? <p className="error">{error}</p> : null}
 
           <div className="notification-modal-actions">
             <button

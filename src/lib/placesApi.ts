@@ -8,6 +8,10 @@ export type PlacePrediction = {
     main_text?: string;
     secondary_text?: string;
   };
+  feature_type?: string | null;
+  poi_categories?: string[];
+  maki?: string | null;
+  session_token?: string;
 };
 
 export type PlaceDetails = {
@@ -23,33 +27,58 @@ export type LocationPoint = {
   latitude: number;
   longitude: number;
   placeId?: string;
+  /** True while place details (coords) are still loading after a tap. */
+  resolving?: boolean;
 };
 
-export async function fetchPlaceAutocomplete(input: string) {
-  const { data } = await http.get<ApiResponse<{ predictions: PlacePrediction[] }>>(
-    "/places/autocomplete",
-    {
-      params: {
-        input,
-        components: "country:ng",
-        language: "en",
-      },
+/** Stable UUIDv4 for one Mapbox Search Box suggest→retrieve billing session. */
+export function createPlacesSessionToken(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+export async function fetchPlaceAutocomplete(
+  input: string,
+  options?: {
+    sessionToken?: string;
+    latitude?: number;
+    longitude?: number;
+  },
+) {
+  const { data } = await http.get<
+    ApiResponse<{ predictions: PlacePrediction[]; session_token?: string }>
+  >("/places/autocomplete", {
+    params: {
+      input,
+      components: "country:ng",
+      language: "en",
+      session_token: options?.sessionToken,
+      latitude: options?.latitude,
+      longitude: options?.longitude,
     },
-  );
+  });
   if (!data.success) {
     return {
       success: false as const,
       data: null,
+      sessionToken: options?.sessionToken ?? null,
       error: data.error ?? { message: "Failed to search places" },
     };
   }
   return {
     success: true as const,
     data: data.data?.predictions ?? [],
+    sessionToken: data.data?.session_token ?? options?.sessionToken ?? null,
   };
 }
 
-export async function fetchPlaceDetails(placeId: string) {
+export async function fetchPlaceDetails(placeId: string, sessionToken?: string | null) {
   const { data } = await http.get<
     ApiResponse<{
       result?: {
@@ -58,9 +87,13 @@ export async function fetchPlaceDetails(placeId: string) {
         formatted_address?: string;
         geometry?: { location?: { lat?: number; lng?: number } };
       };
+      session_token?: string;
     }>
   >("/places/details", {
-    params: { place_id: placeId },
+    params: {
+      place_id: placeId,
+      session_token: sessionToken || undefined,
+    },
   });
 
   if (!data.success || !data.data?.result) {
@@ -118,4 +151,32 @@ export async function checkLocationServiceability(latitude: number, longitude: n
       zone_name: data.data.zone_name?.trim() || "this area",
     },
   };
+}
+
+export function featureTypeLabel(featureType?: string | null, poiCategories?: string[]): string {
+  if (poiCategories && poiCategories.length > 0) {
+    return poiCategories[0].replace(/_/g, " ");
+  }
+  switch ((featureType || "").toLowerCase()) {
+    case "poi":
+      return "Place";
+    case "brand":
+      return "Brand";
+    case "address":
+      return "Address";
+    case "street":
+      return "Street";
+    case "neighborhood":
+      return "Neighborhood";
+    case "locality":
+    case "place":
+    case "city":
+      return "Area";
+    case "district":
+      return "District";
+    case "postcode":
+      return "Postcode";
+    default:
+      return featureType ? featureType.replace(/_/g, " ") : "Result";
+  }
 }

@@ -67,12 +67,13 @@ export function hasPassword(user: User | null | undefined): boolean {
   return true;
 }
 
-/** Name + address fields needed before posting errands / payments */
+/** Name + address + email needed before posting errands / payments */
 export function isProfileComplete(user: User | null | undefined): boolean {
   if (!user) return false;
   return !!(
     user.first_name?.trim() &&
     user.last_name?.trim() &&
+    user.email?.trim() &&
     user.address?.trim() &&
     user.city?.trim() &&
     user.state?.trim()

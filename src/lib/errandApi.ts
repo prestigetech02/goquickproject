@@ -8,6 +8,7 @@ import type {
   ErrandStatusFilter,
   ErrandsListResult,
 } from "../types/errand";
+import type { ErrandTracking } from "../types/tracking";
 
 export async function fetchMyErrands(params?: {
   status?: Exclude<ErrandStatusFilter, "all">;
@@ -192,10 +193,13 @@ export type CreateErrandPayload = {
   dropoff_longitude?: number | null;
   estimated_stops?: number | null;
   metadata?: Record<string, unknown> | null;
+  /** Optional files for instructions (images, PDF, audio) — sent as multipart `attachments[]`. */
+  attachments?: File[];
 };
 
 export type CreateErrandResult = {
   errand: Errand;
+  attachments?: Errand["attachments"];
   estimate?: ErrandEstimate["estimate"];
   suggested_price?: ErrandEstimate["suggested_price"];
   service_zone?: ErrandEstimate["service_zone"];
@@ -249,9 +253,58 @@ export async function estimateErrand(payload: {
   }
 }
 
+function appendCreateErrandFormData(payload: CreateErrandPayload): FormData {
+  const form = new FormData();
+  const scalarEntries: [string, string | number | null | undefined][] = [
+    ["title", payload.title],
+    ["description", payload.description],
+    ["category", payload.category],
+    ["type", payload.type],
+    ["scheduled_at", payload.scheduled_at],
+    ["budget_min", payload.budget_min],
+    ["budget_max", payload.budget_max],
+    ["pickup_address", payload.pickup_address],
+    ["pickup_latitude", payload.pickup_latitude],
+    ["pickup_longitude", payload.pickup_longitude],
+    ["dropoff_address", payload.dropoff_address],
+    ["dropoff_latitude", payload.dropoff_latitude],
+    ["dropoff_longitude", payload.dropoff_longitude],
+    ["estimated_stops", payload.estimated_stops],
+  ];
+
+  for (const [key, value] of scalarEntries) {
+    if (value === null || value === undefined || value === "") continue;
+    form.append(key, String(value));
+  }
+
+  if (payload.metadata) {
+    for (const [key, value] of Object.entries(payload.metadata)) {
+      if (value === null || value === undefined || value === "") continue;
+      form.append(`metadata[${key}]`, String(value));
+    }
+  }
+
+  for (const file of payload.attachments ?? []) {
+    form.append("attachments[]", file);
+  }
+
+  return form;
+}
+
 export async function createErrand(payload: CreateErrandPayload) {
   try {
-    const { data } = await http.post<ApiResponse<CreateErrandResult>>("/errands", payload);
+    const hasFiles = (payload.attachments?.length ?? 0) > 0;
+    const { data } = hasFiles
+      ? await http.post<ApiResponse<CreateErrandResult>>(
+          "/errands",
+          appendCreateErrandFormData(payload),
+          { headers: { "Content-Type": "multipart/form-data" } },
+        )
+      : await http.post<ApiResponse<CreateErrandResult>>("/errands", {
+          ...payload,
+          attachments: undefined,
+        });
+
     if (!data.success || !data.data?.errand) {
       return {
         success: false as const,
@@ -307,6 +360,13 @@ export async function submitErrandReview(
       rating: payload.rating,
       comment: payload.comment?.trim() || null,
     },
+  );
+  return data;
+}
+
+export async function fetchErrandTracking(errandId: number) {
+  const { data } = await http.get<ApiResponse<ErrandTracking>>(
+    `/errands/${errandId}/tracking`,
   );
   return data;
 }

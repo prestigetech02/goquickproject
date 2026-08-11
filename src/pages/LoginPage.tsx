@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PasswordInput } from "../components/PasswordInput";
+import { useToast } from "../components/ToastProvider";
 import { establishSession, getRememberMe } from "../lib/auth";
 import { loginWithPhone } from "../lib/authApi";
 import { getApiErrorMessage } from "../lib/http";
@@ -15,20 +16,19 @@ function normalizePhone(value: string): string {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(() => getRememberMe());
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     const normalized = normalizePhone(phone);
     if (!/^\d{11}$/.test(normalized)) {
-      setError("Enter a valid 11-digit Nigerian phone number.");
+      toast.error("Enter a valid 11-digit Nigerian phone number.");
       setLoading(false);
       return;
     }
@@ -36,7 +36,7 @@ export function LoginPage() {
     try {
       const res = await loginWithPhone(normalized, password);
       if (!res.success || !res.data?.token) {
-        setError(res.error?.message || "Login failed.");
+        toast.error(res.error?.message || "Login failed.");
         return;
       }
 
@@ -49,13 +49,15 @@ export function LoginPage() {
         rememberMe,
       );
 
+      toast.success("Signed in successfully.");
+
       if (res.data.user.role === "runner") {
         navigate("/get-app", { replace: true });
       } else {
         navigate("/", { replace: true });
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, "Login failed. Please try again."));
+      toast.error(getApiErrorMessage(err, "Login failed. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -103,8 +105,6 @@ export function LoginPage() {
             Forgot password?
           </Link>
         </div>
-
-        {error ? <p className="error">{error}</p> : null}
 
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}

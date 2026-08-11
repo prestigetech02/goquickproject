@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CancelErrandModal } from "../components/CancelErrandModal";
+import {
+  ErrandTrackingMap,
+  type LiveRunnerPosition,
+} from "../components/ErrandTrackingMap";
 import { RejectProofModal } from "../components/RejectProofModal";
 import { ReviewRunnerModal } from "../components/ReviewRunnerModal";
+import { useToast } from "../components/ToastProvider";
 import { formatDateTime } from "../lib/datetime";
 import { createOrGetChatThread } from "../lib/errandApi";
 import { getApiErrorMessage } from "../lib/http";
@@ -26,6 +31,7 @@ import {
   proofStatusLabel,
   runnerDisplayName,
 } from "../types/errand";
+import { isTrackableErrandStatus } from "../types/tracking";
 
 const TIMELINE: { key: string; label: string; match: string[] }[] = [
   { key: "searching", label: "Searching", match: ["draft", "searching", "pending"] },
@@ -45,6 +51,7 @@ function timelineIndex(status: string): number {
 
 export function ErrandDetailPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const { errandId: rawId } = useParams();
   const [searchParams] = useSearchParams();
   const errandId = rawId ? Number(rawId) : null;
@@ -55,7 +62,31 @@ export function ErrandDetailPage() {
     !!errand &&
     ["searching", "pending"].includes(errand.status.toLowerCase()) &&
     !errand.runner_id;
-  const { live: errandLive } = useErrandRealtime(validId, { listenOffers: showOffers });
+  const showTracking = !!errand && isTrackableErrandStatus(errand.status);
+  const [runnerLivePos, setRunnerLivePos] = useState<LiveRunnerPosition | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  // Reset live marker when switching errands.
+  const onRunnerLocation = useCallback(
+    (payload: { latitude?: number; longitude?: number; updated_at?: string }) => {
+      if (payload.latitude == null || payload.longitude == null) return;
+      setRunnerLivePos({
+        lat: payload.latitude,
+        lng: payload.longitude,
+        updatedAt: payload.updated_at ?? new Date().toISOString(),
+      });
+    },
+    [],
+  );
+
+  const { live: errandLive } = useErrandRealtime(validId, {
+    listenOffers: showOffers,
+    listenRunnerLocation: showTracking,
+    onRunnerLocation: showTracking ? onRunnerLocation : undefined,
+  });
   const { data: offers = [] } = useErrandOffersQuery(validId, showOffers, {
     refetchInterval: showOffers && !errandLive ? 12_000 : false,
   });
@@ -65,12 +96,9 @@ export function ErrandDetailPage() {
   const rejectProof = useRejectErrandCompletionMutation(validId ?? 0);
   const submitReview = useSubmitErrandReviewMutation(validId ?? 0);
 
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
+  useEffect(() => {
+    setRunnerLivePos(null);
+  }, [validId]);
 
   const backQuery = searchParams.toString() ? `?${searchParams}` : "";
   const tone = errand ? errandStatusTone(errand.status) : "muted";
@@ -82,22 +110,22 @@ export function ErrandDetailPage() {
 
   async function confirmCancel() {
     if (!validId || !errand) return;
-    setActionError(null);
     try {
       await cancelMutation.mutateAsync(validId);
       setCancelOpen(false);
+      toast.success("Errand cancelled.");
     } catch (err) {
-      setActionError(getApiErrorMessage(err, "Could not cancel errand."));
+      toast.error(getApiErrorMessage(err, "Could not cancel errand."));
       setCancelOpen(false);
     }
   }
 
   async function handleAccept(offerId: number) {
-    setActionError(null);
     try {
       await acceptMutation.mutateAsync(offerId);
+      toast.success("Offer accepted.");
     } catch (err) {
-      setActionError(
+      toast.error(
         getApiErrorMessage(err, "Could not accept offer. Check your wallet balance."),
       );
     }
@@ -106,7 +134,6 @@ export function ErrandDetailPage() {
   async function handleChat() {
     if (!errand?.runner?.id) return;
     setChatLoading(true);
-    setActionError(null);
     try {
       const res = await createOrGetChatThread(errand.runner.id, errand.id);
       if (!res.success || !res.data) {
@@ -122,7 +149,7 @@ export function ErrandDetailPage() {
         },
       });
     } catch (err) {
-      setActionError(getApiErrorMessage(err, "Could not open chat."));
+      toast.error(getApiErrorMessage(err, "Could not open chat."));
     } finally {
       setChatLoading(false);
     }
@@ -130,39 +157,33 @@ export function ErrandDetailPage() {
 
   async function handleAcceptProof() {
     if (!validId) return;
-    setActionError(null);
-    setActionSuccess(null);
     try {
       await acceptProof.mutateAsync();
-      setActionSuccess("Proof accepted. Escrow will be released if it was held.");
+      toast.success("Proof accepted. Escrow will be released if it was held.");
     } catch (err) {
-      setActionError(getApiErrorMessage(err, "Could not accept proof."));
+      toast.error(getApiErrorMessage(err, "Could not accept proof."));
     }
   }
 
   async function handleRejectProof(reason: string) {
     if (!validId) return;
-    setActionError(null);
-    setActionSuccess(null);
     try {
       await rejectProof.mutateAsync(reason);
       setRejectOpen(false);
-      setActionSuccess("Proof rejected. The runner can resubmit.");
+      toast.success("Proof rejected. The runner can resubmit.");
     } catch (err) {
-      setActionError(getApiErrorMessage(err, "Could not reject proof."));
+      toast.error(getApiErrorMessage(err, "Could not reject proof."));
     }
   }
 
   async function handleSubmitReview(payload: { rating: number; comment?: string | null }) {
     if (!validId) return;
-    setActionError(null);
-    setActionSuccess(null);
     try {
       await submitReview.mutateAsync(payload);
       setReviewOpen(false);
-      setActionSuccess("Thanks — your review was submitted.");
+      toast.success("Thanks — your review was submitted.");
     } catch (err) {
-      setActionError(getApiErrorMessage(err, "Could not submit review."));
+      toast.error(getApiErrorMessage(err, "Could not submit review."));
     }
   }
 
@@ -221,13 +242,50 @@ export function ErrandDetailPage() {
         <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
       </header>
 
-      {actionError ? <p className="error">{actionError}</p> : null}
-      {actionSuccess ? <p className="info">{actionSuccess}</p> : null}
-
       {errand.description ? (
         <section className="card stack">
           <h2 className="profile-card-title">Description</h2>
           <p>{errand.description}</p>
+        </section>
+      ) : null}
+
+      {typeof errand.metadata?.instructions === "string" &&
+      errand.metadata.instructions.trim() ? (
+        <section className="card stack">
+          <h2 className="profile-card-title">Instructions</h2>
+          <p>{String(errand.metadata.instructions)}</p>
+        </section>
+      ) : null}
+
+      {errand.attachments && errand.attachments.length > 0 ? (
+        <section className="card stack">
+          <h2 className="profile-card-title">Attachments</h2>
+          <div className="errand-attachments-grid">
+            {errand.attachments.map((att) => {
+              const url = att.file_url;
+              if (!url) return null;
+              const name = att.file_name || "Attachment";
+              const isImage = (att.file_type || "").startsWith("image/");
+              return (
+                <a
+                  key={att.id}
+                  className="errand-attachment-card"
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {isImage ? (
+                    <img src={url} alt={name} />
+                  ) : (
+                    <span className="errand-attachment-file">
+                      {(att.file_type || "").startsWith("audio/") ? "Audio" : "File"}
+                    </span>
+                  )}
+                  <span className="errand-attachment-name muted">{name}</span>
+                </a>
+              );
+            })}
+          </div>
         </section>
       ) : null}
 
@@ -254,6 +312,14 @@ export function ErrandDetailPage() {
           </div>
         ) : null}
       </section>
+
+      {showTracking ? (
+        <ErrandTrackingMap
+          errandId={errand.id}
+          runnerPos={runnerLivePos}
+          live={errandLive}
+        />
+      ) : null}
 
       <section className="card stack">
         <h2 className="profile-card-title">Status</h2>

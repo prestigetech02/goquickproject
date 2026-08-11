@@ -39,6 +39,7 @@ import {
   fetchErrand,
   fetchErrandOffers,
   fetchErrandStats,
+  fetchErrandTracking,
   fetchErrandTypeSchemas,
   fetchMyErrands,
   rejectErrandCompletion,
@@ -109,8 +110,14 @@ export function useUpdateProfileMutation() {
 export function useUploadProfilePictureMutation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (file: File) => {
-      const res = await uploadProfilePicture(file);
+    mutationFn: async ({
+      file,
+      onProgress,
+    }: {
+      file: File;
+      onProgress?: (percent: number) => void;
+    }) => {
+      const res = await uploadProfilePicture(file, onProgress);
       if (!res.success || !res.data?.profile_picture) {
         throw new Error(res.error?.message ?? "Failed to upload photo");
       }
@@ -614,6 +621,21 @@ export function useErrandOffersQuery(
   });
 }
 
+export function useErrandTrackingQuery(errandId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.errandTracking(errandId ?? 0),
+    enabled: enabled && errandId != null && errandId > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await fetchErrandTracking(errandId!);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load tracking");
+      }
+      return res.data;
+    },
+  });
+}
+
 export function useCancelErrandMutation() {
   const qc = useQueryClient();
   return useMutation({
@@ -777,7 +799,11 @@ export function useCreateErrandMutation() {
       return res.data;
     },
     onSuccess: (data) => {
-      qc.setQueryData(queryKeys.errand(data.errand.id), data.errand);
+      const errand = {
+        ...data.errand,
+        attachments: data.attachments ?? data.errand.attachments ?? null,
+      };
+      qc.setQueryData(queryKeys.errand(errand.id), errand);
       void qc.invalidateQueries({ queryKey: ["errands"] });
       void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
       void qc.invalidateQueries({ queryKey: queryKeys.wallet });

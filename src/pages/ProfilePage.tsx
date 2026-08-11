@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
 import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
+import { useToast } from "../components/ToastProvider";
 import { clearSession } from "../lib/auth";
 import { logout } from "../lib/authApi";
 import { config } from "../lib/config";
@@ -57,6 +58,7 @@ function MenuLink({
 
 export function ProfilePage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const sectionMatch = useMatch("/profile/:section");
   const hasSection = Boolean(sectionMatch?.params.section);
 
@@ -66,7 +68,7 @@ export function ProfilePage() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const name =
     [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() || "Requester";
@@ -85,19 +87,25 @@ export function ProfilePage() {
 
   async function handlePhotoChange(file: File | undefined) {
     if (!file) return;
-    setPhotoError(null);
     if (!file.type.startsWith("image/")) {
-      setPhotoError("Choose a JPG, PNG, or WebP image.");
+      toast.error("Choose a JPG, PNG, or WebP image.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setPhotoError("Photo must be 2MB or smaller.");
+      toast.error("Photo must be 2MB or smaller.");
       return;
     }
+    setUploadProgress(0);
     try {
-      await uploadPic.mutateAsync(file);
+      await uploadPic.mutateAsync({
+        file,
+        onProgress: (percent) => setUploadProgress(percent),
+      });
+      toast.success("Profile photo updated.");
     } catch (err) {
-      setPhotoError(getApiErrorMessage(err, "Failed to upload photo."));
+      toast.error(getApiErrorMessage(err, "Failed to upload photo."));
+    } finally {
+      setUploadProgress(null);
     }
   }
 
@@ -107,6 +115,7 @@ export function ProfilePage() {
     try {
       await navigator.clipboard.writeText(text);
       setCopyDone(true);
+      toast.success("Referral message copied.");
       window.setTimeout(() => setCopyDone(false), 2000);
     } catch {
       window.prompt("Copy your referral message:", text);
@@ -127,7 +136,6 @@ export function ProfilePage() {
               </button>
             </p>
           ) : null}
-          {photoError ? <p className="error">{photoError}</p> : null}
 
           {!profileDone && user ? (
             <div className="profile-banner">
@@ -146,7 +154,7 @@ export function ProfilePage() {
               type="button"
               className="profile-avatar-btn"
               onClick={() => fileRef.current?.click()}
-              disabled={uploadPic.isPending || isPending}
+              disabled={uploadPic.isPending || isPending || uploadProgress != null}
               aria-label="Change profile photo"
             >
               {user?.profile_picture ? (
@@ -157,7 +165,7 @@ export function ProfilePage() {
                 </span>
               )}
               <span className="profile-avatar-badge" aria-hidden>
-                {uploadPic.isPending ? "…" : "✎"}
+                {uploadProgress != null ? "…" : "✎"}
               </span>
             </button>
             <input

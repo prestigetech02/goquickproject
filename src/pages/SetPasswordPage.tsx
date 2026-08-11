@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { PasswordInput } from "../components/PasswordInput";
+import { useToast } from "../components/ToastProvider";
 import { getStoredUser, setStoredUser } from "../lib/auth";
 import { setPassword as setPasswordApi } from "../lib/authApi";
 import { getApiErrorMessage } from "../lib/http";
@@ -8,21 +9,20 @@ import type { User } from "../types/api";
 
 export function SetPasswordPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      toast.error("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      toast.error("Passwords do not match.");
       return;
     }
 
@@ -30,7 +30,7 @@ export function SetPasswordPage() {
     try {
       const res = await setPasswordApi(password, confirmPassword);
       if (!res.success || !res.data?.user) {
-        setError(res.error?.message || "Could not set password.");
+        toast.error(res.error?.message || "Could not set password.");
         return;
       }
 
@@ -41,6 +41,7 @@ export function SetPasswordPage() {
         has_password: true,
       };
       setStoredUser(updated);
+      toast.success("Password saved.");
 
       if (updated.role === "runner") {
         navigate("/get-app", { replace: true });
@@ -49,7 +50,6 @@ export function SetPasswordPage() {
       }
     } catch (err) {
       const msg = getApiErrorMessage(err, "Could not set password.");
-      // Already set on server — continue into the app
       if (msg.toLowerCase().includes("already set")) {
         const existing = getStoredUser();
         if (existing) {
@@ -58,7 +58,7 @@ export function SetPasswordPage() {
         navigate("/", { replace: true });
         return;
       }
-      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,6 @@ export function SetPasswordPage() {
           required
           autoComplete="new-password"
         />
-        {error ? <p className="error">{error}</p> : null}
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? "Saving…" : "Continue to dashboard"}
         </button>

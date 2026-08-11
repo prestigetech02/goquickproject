@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ProfileSubHeader } from "../../components/ProfileSubHeader";
+import { useToast } from "../../components/ToastProvider";
 import { getApiErrorMessage } from "../../lib/http";
 import { NIGERIAN_STATES } from "../../lib/nigerianStates";
 import { useProfileQuery, useUpdateProfileMutation } from "../../lib/queries";
 
 export function PersonalInfoPage() {
+  const toast = useToast();
   const { data: user, isPending } = useProfileQuery();
   const update = useUpdateProfileMutation();
 
@@ -14,8 +16,6 @@ export function PersonalInfoPage() {
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -29,15 +29,13 @@ export function PersonalInfoPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSaved(false);
 
     if (!firstName.trim() || !lastName.trim()) {
-      setError("First and last name are required.");
+      toast.error("First and last name are required.");
       return;
     }
     if (!address.trim() || !city.trim() || !state.trim()) {
-      setError("Address, city, and state are required.");
+      toast.error("Address, city, and state are required.");
       return;
     }
 
@@ -50,9 +48,9 @@ export function PersonalInfoPage() {
         city: city.trim(),
         state: state.trim(),
       });
-      setSaved(true);
+      toast.success("Profile saved.");
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to save profile."));
+      toast.error(getApiErrorMessage(err, "Failed to save profile."));
     }
   }
 
@@ -126,9 +124,6 @@ export function PersonalInfoPage() {
             </option>
           ))}
         </select>
-
-        {error ? <p className="error">{error}</p> : null}
-        {saved ? <p className="success">Profile saved.</p> : null}
 
         <button type="submit" className="btn-primary" disabled={update.isPending}>
           {update.isPending ? "Saving…" : "Save changes"}

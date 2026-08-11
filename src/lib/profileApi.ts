@@ -18,14 +18,29 @@ export async function updateProfile(payload: ProfileUpdatePayload) {
   return data;
 }
 
-export async function uploadProfilePicture(file: File) {
+export async function uploadProfilePicture(
+  file: File,
+  onProgress?: (percent: number) => void,
+) {
   const form = new FormData();
   form.append("profile_picture", file);
   const { data } = await http.post<ApiResponse<{ profile_picture: string }>>(
     "/user/profile-picture",
     form,
-    { headers: { "Content-Type": "multipart/form-data" } },
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (event) => {
+        if (!onProgress) return;
+        if (!event.total || event.total <= 0) {
+          onProgress(event.loaded > 0 ? 90 : 0);
+          return;
+        }
+        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+        onProgress(percent);
+      },
+    },
   );
+  onProgress?.(100);
   return data;
 }
 

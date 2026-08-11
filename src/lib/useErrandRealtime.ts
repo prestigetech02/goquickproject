@@ -15,13 +15,30 @@ type OfferPayload = {
   offer?: ErrandOffer;
 };
 
+export type RunnerLocationPayload = {
+  errand_id?: number;
+  runner_id?: number;
+  latitude?: number;
+  longitude?: number;
+  updated_at?: string;
+};
+
 /**
- * Subscribe to private-errand.{id} for status + offer updates.
+ * Subscribe to private-errand.{id} for status, offers, and optional runner location.
  */
-export function useErrandRealtime(errandId: number | null, options?: { listenOffers?: boolean }) {
+export function useErrandRealtime(
+  errandId: number | null,
+  options?: {
+    listenOffers?: boolean;
+    listenRunnerLocation?: boolean;
+    onRunnerLocation?: (payload: RunnerLocationPayload) => void;
+  },
+) {
   const qc = useQueryClient();
   const [live, setLive] = useState(false);
   const listenOffers = options?.listenOffers ?? true;
+  const listenRunnerLocation = options?.listenRunnerLocation ?? false;
+  const onRunnerLocation = options?.onRunnerLocation;
 
   useEffect(() => {
     if (errandId == null || errandId <= 0) {
@@ -60,6 +77,7 @@ export function useErrandRealtime(errandId: number | null, options?: { listenOff
         void qc.invalidateQueries({ queryKey: ["errands"] });
         void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
         void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
+        void qc.invalidateQueries({ queryKey: queryKeys.errandTracking(errandId) });
       });
 
       if (listenOffers) {
@@ -76,6 +94,21 @@ export function useErrandRealtime(errandId: number | null, options?: { listenOff
           void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
         });
       }
+
+      if (listenRunnerLocation) {
+        channel.listen(".runner.location.updated", (payload: RunnerLocationPayload) => {
+          if (cancelled) return;
+          const lat = Number(payload?.latitude);
+          const lng = Number(payload?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+          onRunnerLocation?.({
+            ...payload,
+            errand_id: payload.errand_id ?? errandId,
+            latitude: lat,
+            longitude: lng,
+          });
+        });
+      }
     } catch {
       setLive(false);
       return;
@@ -90,7 +123,7 @@ export function useErrandRealtime(errandId: number | null, options?: { listenOff
         // ignore
       }
     };
-  }, [errandId, listenOffers, qc]);
+  }, [errandId, listenOffers, listenRunnerLocation, onRunnerLocation, qc]);
 
   return { live };
 }

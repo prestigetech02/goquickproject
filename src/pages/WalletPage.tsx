@@ -14,6 +14,7 @@ import {
   type WalletTransaction,
 } from "../lib/walletApi";
 import { FundWalletModal } from "../components/FundWalletModal";
+import { useToast } from "../components/ToastProvider";
 import { WalletTransactionModal } from "../components/WalletTransactionModal";
 
 const HIDE_BALANCE_KEY = "requester_hide_balance";
@@ -115,6 +116,7 @@ function TxRow({ tx, onOpen }: { tx: WalletTransaction; onOpen: () => void }) {
 }
 
 export function WalletPage() {
+  const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const walletQ = useWalletQuery();
   const txQ = useWalletTransactionsInfiniteQuery(20);
@@ -123,8 +125,6 @@ export function WalletPage() {
   const [fundOpen, setFundOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<WalletTransaction | null>(null);
-  const [banner, setBanner] = useState<string | null>(null);
-  const [bannerError, setBannerError] = useState<string | null>(null);
   const [hideBalance, setHideBalance] = useState(() => {
     try {
       return localStorage.getItem(HIDE_BALANCE_KEY) === "1";
@@ -149,22 +149,19 @@ export function WalletPage() {
     verifyingRef.current = true;
 
     void (async () => {
-      setBanner("Confirming your payment…");
-      setBannerError(null);
+      toast.info("Confirming your payment…");
       try {
         const data = await verify.mutateAsync(reference);
         const status = String(data.transaction.status).toLowerCase();
         if (status === "completed") {
-          setBanner("Wallet funded successfully.");
+          toast.success("Wallet funded successfully.");
         } else if (status === "pending") {
-          setBanner("Payment is still pending. It will update shortly.");
+          toast.info("Payment is still pending. It will update shortly.");
         } else {
-          setBannerError(`Payment status: ${status}`);
-          setBanner(null);
+          toast.error(`Payment status: ${status}`);
         }
       } catch (err) {
-        setBanner(null);
-        setBannerError(getApiErrorMessage(err, "Could not confirm payment."));
+        toast.error(getApiErrorMessage(err, "Could not confirm payment."));
       } finally {
         setSearchParams({}, { replace: true });
         verifyingRef.current = false;
@@ -195,9 +192,6 @@ export function WalletPage() {
           <h1>Wallet</h1>
         </div>
       </div>
-
-      {banner ? <div className="wallet-banner ok">{banner}</div> : null}
-      {bannerError ? <div className="wallet-banner danger">{bannerError}</div> : null}
 
       <section className="wallet-balance-card">
         <div className="wallet-balance-top">

@@ -40,6 +40,14 @@ export type ErrandProof = {
   rejected_at?: string | null;
 };
 
+export type ErrandAttachment = {
+  id: number;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_url?: string | null;
+  file_size?: number | null;
+};
+
 export type Errand = {
   id: number;
   title: string;
@@ -61,6 +69,7 @@ export type Errand = {
   runner?: ErrandRunner | null;
   payment?: ErrandPayment | null;
   proof?: ErrandProof | null;
+  attachments?: ErrandAttachment[] | null;
   buyer_has_reviewed?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
