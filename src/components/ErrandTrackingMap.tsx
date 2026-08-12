@@ -175,9 +175,25 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
     const lngLat: [number, number] = [effectiveRunner.lng, effectiveRunner.lat];
     if (!runnerMarkerRef.current) {
       const el = document.createElement("div");
-      el.className = "errand-tracking-runner-dot";
+      el.className = "errand-tracking-runner-pin";
       el.title = "Runner";
-      runnerMarkerRef.current = new mapboxgl.Marker({ element: el }).setLngLat(lngLat).addTo(map);
+      el.setAttribute("role", "img");
+      el.setAttribute("aria-label", "Runner location");
+
+      const img = document.createElement("img");
+      img.src = "/goquick-runner-pin.png";
+      img.alt = "";
+      img.draggable = false;
+      el.appendChild(img);
+
+      runnerMarkerRef.current = new mapboxgl.Marker({
+        element: el,
+        // Pin tip sits on the coordinates.
+        anchor: "bottom",
+        offset: [0, 2],
+      })
+        .setLngLat(lngLat)
+        .addTo(map);
     } else {
       runnerMarkerRef.current.setLngLat(lngLat);
     }
@@ -208,7 +224,7 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
       <div className="errand-tracking-header">
         <h2 className="profile-card-title">Live tracking</h2>
         <div className="errand-tracking-meta muted">
-          {live ? <span className="errand-tracking-live">Live</span> : <span>Connecting…</span>}
+          {live ? <span className="errand-tracking-live">Live</span> : <span>Waiting for live link…</span>}
           {eta ? <span>ETA {eta}</span> : null}
           {data?.distance_km != null ? <span>{data.distance_km.toFixed(1)} km</span> : null}
         </div>
