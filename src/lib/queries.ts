@@ -84,6 +84,9 @@ export function useProfileQuery() {
     queryFn: loadProfileUser,
     initialData: () => getStoredUser() ?? undefined,
     initialDataUpdatedAt: 0,
+    // Always reconcile with /user/profile so login payloads missing fields don't stick.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 

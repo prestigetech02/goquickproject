@@ -9,14 +9,17 @@ export const config = {
   /** Public Mapbox token for Mapbox GL JS (tiles only — never use the secret token here). */
   mapboxAccessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || "",
   /** `pusher` (Pusher.com) or `reverb` (self-hosted Laravel Reverb). Must match backend BROADCAST_CONNECTION. */
-  broadcastDriver: (import.meta.env.VITE_BROADCAST_DRIVER || "pusher").toLowerCase() as
+  broadcastDriver: (import.meta.env.VITE_BROADCAST_DRIVER || "reverb").toLowerCase() as
     | "pusher"
     | "reverb",
-  /** Pusher.com key — matches mobile AppConfig when using cloud broadcasting */
-  pusherKey: import.meta.env.VITE_PUSHER_APP_KEY || "e6ac4473f96dc5689d26",
+  /** Pusher.com key — only when broadcastDriver is pusher */
+  pusherKey: import.meta.env.VITE_PUSHER_APP_KEY || "",
   pusherCluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || "mt1",
-  /** Reverb app key (often same as PUSHER_APP_KEY / REVERB_APP_KEY on backend) */
-  reverbKey: import.meta.env.VITE_REVERB_APP_KEY || import.meta.env.VITE_PUSHER_APP_KEY || "",
+  /** Reverb app key (must match backend REVERB_APP_KEY) */
+  reverbKey:
+    import.meta.env.VITE_REVERB_APP_KEY ||
+    import.meta.env.VITE_PUSHER_APP_KEY ||
+    "demo_app_key_123456",
   reverbHost: import.meta.env.VITE_REVERB_HOST || "127.0.0.1",
   reverbPort: Number(import.meta.env.VITE_REVERB_PORT || 8080),
   reverbScheme: (import.meta.env.VITE_REVERB_SCHEME || "http").toLowerCase() as "http" | "https",

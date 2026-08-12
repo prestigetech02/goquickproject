@@ -1,5 +1,5 @@
 import type { User } from "../types/api";
-import { queryClient } from "./queryClient";
+import { queryClient, queryKeys } from "./queryClient";
 
 const TOKEN_KEY = "gq_web_token";
 const USER_KEY = "gq_web_user";
@@ -73,4 +73,6 @@ export function establishSession(token: string, user: User, remember = true): vo
   setRememberMe(remember);
   setToken(token, remember);
   setStoredUser(user, remember);
+  queryClient.setQueryData(queryKeys.profile, user);
+  void queryClient.invalidateQueries({ queryKey: queryKeys.profile });
 }
