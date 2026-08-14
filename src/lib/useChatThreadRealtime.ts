@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { getEcho } from "./echo";
 import { getStoredUser } from "./auth";
-import { markThreadMessagesRead, upsertChatMessage } from "./chatCache";
+import { markThreadMessagesRead, setThreadUnread, upsertChatMessage } from "./chatCache";
 import { queryKeys } from "./queryClient";
-import type { ChatMessagesPayload, ChatThreadsPage } from "../types/chat";
+import type { ChatMessagesPayload } from "../types/chat";
 import { markChatThreadRead } from "./chatApi";
 
 type TypingPayload = {
@@ -115,25 +115,7 @@ export function useChatThreadRealtime(threadId: number | null) {
           const senderId = Number(payload.message.sender_id) || 0;
           if (me > 0 && senderId !== me) {
             void markChatThreadRead(activeThreadId).then(() => {
-              qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
-                if (!old) return old;
-                return {
-                  ...old,
-                  pages: old.pages.map((page) => {
-                    const target = page.threads.find((t) => t.id === activeThreadId);
-                    const cleared = target?.unread_count ?? 0;
-                    return {
-                      ...page,
-                      unread_total: Math.max(0, page.unread_total - cleared),
-                      threads: page.threads.map((t) =>
-                        t.id === activeThreadId
-                          ? { ...t, unread_count: 0, missed_call_count: 0 }
-                          : t,
-                      ),
-                    };
-                  }),
-                };
-              });
+              setThreadUnread(qc, activeThreadId, 0);
             });
           }
         },

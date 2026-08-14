@@ -174,8 +174,10 @@ export function NewErrandPage() {
   const [estimate, setEstimate] = useState<ErrandEstimate | null>(null);
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [zoneError, setZoneError] = useState<string | null>(null);
+  const [offerAmount, setOfferAmount] = useState("");
   const [created, setCreated] = useState<CreateErrandResult | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const offerSeededForEstimate = useRef<string | null>(null);
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -253,26 +255,28 @@ export function NewErrandPage() {
   }, [showDropoff]);
 
   useEffect(() => {
-    if (!pickup || !showDropoff || !dropoff) {
+    const pickupReady =
+      pickup &&
+      !pickup.resolving &&
+      Number.isFinite(pickup.latitude) &&
+      Number.isFinite(pickup.longitude);
+
+    const dropoffReady =
+      !showDropoff ||
+      (dropoff &&
+        !dropoff.resolving &&
+        Number.isFinite(dropoff.latitude) &&
+        Number.isFinite(dropoff.longitude));
+
+    if (!pickupReady || !dropoffReady) {
       setEstimate(null);
       setZoneError(null);
-      setEstimateLoading(false);
+      setEstimateLoading(Boolean(pickup?.resolving || dropoff?.resolving));
       return;
     }
 
-    if (
-      pickup.resolving ||
-      dropoff.resolving ||
-      !Number.isFinite(pickup.latitude) ||
-      !Number.isFinite(pickup.longitude) ||
-      !Number.isFinite(dropoff.latitude) ||
-      !Number.isFinite(dropoff.longitude)
-    ) {
-      setEstimate(null);
-      setZoneError(null);
-      setEstimateLoading(Boolean(pickup.resolving || dropoff.resolving));
-      return;
-    }
+    const dropLat = showDropoff ? dropoff!.latitude : pickup!.latitude;
+    const dropLng = showDropoff ? dropoff!.longitude : pickup!.longitude;
 
     let cancelled = false;
     setEstimateLoading(true);
@@ -281,10 +285,10 @@ export function NewErrandPage() {
       void (async () => {
         const res = await estimateErrand({
           category,
-          pickup_latitude: pickup.latitude,
-          pickup_longitude: pickup.longitude,
-          dropoff_latitude: dropoff.latitude,
-          dropoff_longitude: dropoff.longitude,
+          pickup_latitude: pickup!.latitude,
+          pickup_longitude: pickup!.longitude,
+          dropoff_latitude: dropLat,
+          dropoff_longitude: dropLng,
         });
         if (cancelled) return;
         setEstimateLoading(false);
@@ -310,7 +314,21 @@ export function NewErrandPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [pickup, dropoff, category, showDropoff]);
+  }, [pickup, dropoff, category, showDropoff, toast]);
+
+  useEffect(() => {
+    if (!estimate?.suggested_price) {
+      offerSeededForEstimate.current = null;
+      return;
+    }
+    const { min, max, base } = estimate.suggested_price;
+    const seedKey = `${min}-${max}-${base}`;
+    if (offerSeededForEstimate.current === seedKey) return;
+    offerSeededForEstimate.current = seedKey;
+    const mid = Math.round((Number(min) + Number(max)) / 2);
+    const defaultOffer = Number.isFinite(mid) && mid > 0 ? mid : Math.round(Number(base) || Number(min) || 0);
+    setOfferAmount(defaultOffer > 0 ? String(defaultOffer) : "");
+  }, [estimate]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -351,6 +369,22 @@ export function NewErrandPage() {
       return;
     }
 
+    if (!estimate?.suggested_price || zoneError) {
+      toast.error(zoneError || "Wait for a price estimate before creating.");
+      return;
+    }
+
+    const floor = Number(estimate.suggested_price.min);
+    const offer = Number(offerAmount.replace(/,/g, "").trim());
+    if (!Number.isFinite(offer) || offer <= 0) {
+      toast.error("Enter your offer amount.");
+      return;
+    }
+    if (Number.isFinite(floor) && offer + 0.0001 < floor) {
+      toast.error(`Your offer must be at least ${formatNaira(floor)} (platform minimum).`);
+      return;
+    }
+
     const metadata: Record<string, unknown> = {};
     if (instructions.trim()) metadata.instructions = instructions.trim();
     if (category === "queue") metadata.expected_wait_minutes = Number(waitMinutes);
@@ -362,8 +396,8 @@ export function NewErrandPage() {
         category,
         type: timing === "scheduled" ? "scheduled" : "instant",
         scheduled_at: timing === "scheduled" ? new Date(scheduledAt).toISOString() : null,
-        budget_min: null,
-        budget_max: null,
+        budget_min: offer,
+        budget_max: offer,
         pickup_address: pickup.address,
         pickup_latitude: pickup.latitude,
         pickup_longitude: pickup.longitude,
@@ -383,6 +417,8 @@ export function NewErrandPage() {
         toast.error("Insufficient wallet balance. Fund your wallet, then try again.");
       } else if (code === "ZONE_NOT_SERVICEABLE") {
         toast.error(getApiErrorMessage(err, "This location is outside our service zones."));
+      } else if (code === "OFFER_BELOW_MINIMUM") {
+        toast.error(getApiErrorMessage(err, "Your offer is below the platform minimum."));
       } else {
         toast.error(getApiErrorMessage(err, "Could not create errand."));
       }
@@ -395,6 +431,13 @@ export function NewErrandPage() {
         ? formatNaira(estimate.suggested_price.min)
         : `${formatNaira(estimate.suggested_price.min)} – ${formatNaira(estimate.suggested_price.max)}`
       : null;
+
+  const offerFloor = estimate?.suggested_price?.min ?? null;
+  const offerNum = Number(offerAmount.replace(/,/g, "").trim());
+  const offerBelowFloor =
+    offerFloor != null && Number.isFinite(offerNum) && offerNum > 0 && offerNum + 0.0001 < offerFloor;
+  const canSubmit =
+    !create.isPending && !zoneError && Boolean(estimate?.suggested_price) && !offerBelowFloor && offerNum > 0;
 
   return (
     <div className="page new-errand-page">
@@ -438,6 +481,7 @@ export function NewErrandPage() {
             <strong>
               {pickup?.address || "Choose location"}
               {pickup?.resolving ? "…" : ""}
+              {pickup?.isCustom && !pickup.resolving ? " (custom)" : ""}
             </strong>
           </button>
           {showDropoff ? (
@@ -450,6 +494,7 @@ export function NewErrandPage() {
               <strong>
                 {dropoff?.address || "Choose location"}
                 {dropoff?.resolving ? "…" : ""}
+                {dropoff?.isCustom && !dropoff.resolving ? " (custom)" : ""}
               </strong>
             </button>
           ) : null}
@@ -622,45 +667,65 @@ export function NewErrandPage() {
           ) : null}
         </section>
 
-        {showDropoff ? (
-          <section className={`card new-errand-estimate${zoneError ? " warn" : ""}`}>
-            {estimateLoading ? (
+        <section className={`card new-errand-estimate${zoneError ? " warn" : ""}`}>
+          {estimateLoading ? (
+            <p className="muted" style={{ margin: 0 }}>
+              Estimating price…
+            </p>
+          ) : zoneError ? (
+            <p className="error" style={{ margin: 0 }}>
+              {zoneError}
+            </p>
+          ) : estimatePrice ? (
+            <>
               <p className="muted" style={{ margin: 0 }}>
-                Estimating price…
+                Platform estimate
               </p>
-            ) : zoneError ? (
-              <p className="error" style={{ margin: 0 }}>
-                {zoneError}
+              <p className="new-errand-estimate-price">{estimatePrice}</p>
+              <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+                {showDropoff
+                  ? `${estimate!.estimate.distance_km.toFixed(1)} km · ~${estimate!.estimate.duration_min} min`
+                  : "Based on errand type and location"}
+                {estimate!.service_zone?.zone_name &&
+                (estimate!.service_zone.source === "pickup_geo_match" ||
+                  estimate!.service_zone.source === "dropoff_geo_match")
+                  ? ` · ${estimate!.service_zone.zone_name}`
+                  : ""}
               </p>
-            ) : estimatePrice ? (
-              <>
-                <p className="muted" style={{ margin: 0 }}>
-                  Estimated price
-                </p>
-                <p className="new-errand-estimate-price">{estimatePrice}</p>
-                <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-                  {estimate!.estimate.distance_km.toFixed(1)} km · ~{estimate!.estimate.duration_min}{" "}
-                  min
-                  {estimate!.service_zone?.zone_name &&
-                  (estimate!.service_zone.source === "pickup_geo_match" ||
-                    estimate!.service_zone.source === "dropoff_geo_match")
-                    ? ` · ${estimate!.service_zone.zone_name}`
-                    : ""}
-                </p>
-              </>
-            ) : (
-              <p className="muted" style={{ margin: 0 }}>
-                Select pickup and drop-off to see an estimate.
-              </p>
-            )}
-          </section>
-        ) : null}
 
-        <button
-          type="submit"
-          className="btn-primary"
-          disabled={create.isPending || Boolean(zoneError)}
-        >
+              <label className="new-errand-offer">
+                <span className="label">Your offer (₦)</span>
+                <input
+                  type="number"
+                  min={offerFloor ?? 0}
+                  step={50}
+                  inputMode="numeric"
+                  value={offerAmount}
+                  onChange={(e) => setOfferAmount(e.target.value)}
+                  required
+                />
+              </label>
+              {offerBelowFloor ? (
+                <p className="error" style={{ margin: 0, fontSize: "0.85rem" }}>
+                  Minimum offer is {formatNaira(offerFloor!)}.
+                </p>
+              ) : (
+                <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+                  Platform estimate {estimatePrice}. You&apos;re offering{" "}
+                  {Number.isFinite(offerNum) && offerNum > 0 ? formatNaira(offerNum) : "—"}.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="muted" style={{ margin: 0 }}>
+              {showDropoff
+                ? "Select pickup and drop-off to see an estimate and set your offer."
+                : "Select a location to see an estimate and set your offer."}
+            </p>
+          )}
+        </section>
+
+        <button type="submit" className="btn-primary" disabled={!canSubmit}>
           {create.isPending ? "Creating…" : "Create errand"}
         </button>
       </form>

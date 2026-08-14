@@ -114,7 +114,7 @@ export function ForgotPasswordPage() {
               id="otp"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              maxLength={5}
+              maxLength={6}
               required
             />
             <PasswordInput

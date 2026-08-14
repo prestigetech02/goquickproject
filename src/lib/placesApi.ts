@@ -29,6 +29,8 @@ export type LocationPoint = {
   placeId?: string;
   /** True while place details (coords) are still loading after a tap. */
   resolving?: boolean;
+  /** True when the user entered a free-text label + map pin. */
+  isCustom?: boolean;
 };
 
 /** Stable UUIDv4 for one Mapbox Search Box suggest→retrieve billing session. */

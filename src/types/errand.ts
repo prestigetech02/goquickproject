@@ -179,11 +179,14 @@ export function proofStatusLabel(status: string | null | undefined): string {
   }
 }
 
-/** Buyer can accept/reject when errand is completed and proof is still pending. */
+/** Buyer can accept/reject while proof is pending, or after they rejected it. */
 export function canActOnProof(errand: Errand): boolean {
-  if (errand.status.toLowerCase() !== "completed") return false;
-  const status = (errand.proof?.status || "pending").toLowerCase();
-  return Boolean(errand.proof) && status === "pending";
+  if (!errand.proof) return false;
+  const proofStatus = (errand.proof.status || "pending").toLowerCase();
+  if (proofStatus === "accepted") return false;
+  const status = errand.status.toLowerCase();
+  if (status === "completed") return true;
+  return status === "in_progress" || status === "delayed";
 }
 
 /** Buyer can rate runner after completion if they have not reviewed yet. */
@@ -194,4 +197,20 @@ export function canReviewRunner(errand: Errand): boolean {
 export function formatNaira(amount: number | null | undefined): string {
   if (amount == null || Number.isNaN(Number(amount))) return "—";
   return `₦${Number(amount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function positiveAmount(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+/** Paid/escrow amount when present; otherwise the price quoted at errand creation. */
+export function errandDisplayAmount(errand: Errand): number | null {
+  return (
+    positiveAmount(errand.payment?.amount) ??
+    positiveAmount(errand.base_price) ??
+    positiveAmount(errand.budget_max) ??
+    positiveAmount(errand.budget_min)
+  );
 }

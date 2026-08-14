@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useParams } from "react-router-dom";
 import { ChatArchivesMenu } from "../components/ChatArchivesMenu";
 import { fetchChatMessages, MESSAGES_PAGE_SIZE } from "../lib/chatApi";
 import { formatRelativeWhen } from "../lib/datetime";
+import { formatChatCode, formatErrandCode } from "../lib/publicId";
 import { queryClient, queryKeys } from "../lib/queryClient";
 import { useChatThreadsQuery } from "../lib/queries";
 import type { ChatThread } from "../types/chat";
@@ -188,7 +189,11 @@ export function ChatsPage() {
                         />
                         <span className="chat-row-body">
                           <span className="chat-peer-name">{thread.peer.name}</span>
-                          <span className="chat-preview">{preview}</span>
+                          <span className="chat-preview">
+                            {thread.errand_id
+                              ? `${formatErrandCode(thread.errand_id)} · ${preview}`
+                              : `${formatChatCode(thread.id)} · ${preview}`}
+                          </span>
                         </span>
                         <span className="chat-meta">
                           <span className="chat-time">

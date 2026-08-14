@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { formatDate } from "../lib/datetime";
+import { formatErrandCode } from "../lib/publicId";
 import {
   useActiveErrandsPreviewQuery,
   useErrandStatsQuery,
@@ -72,7 +73,10 @@ function ActiveErrandPreview({ errand }: { errand: Errand }) {
         <span className="dash-errand-title">{errand.title || "Untitled errand"}</span>
         <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
       </span>
-      <span className="dash-errand-meta muted">{formatDate(errand.created_at)}</span>
+      <span className="dash-errand-meta muted">
+        {formatErrandCode(errand.id)}
+        {errand.created_at ? ` · ${formatDate(errand.created_at)}` : ""}
+      </span>
       {route ? <span className="dash-errand-route">{route}</span> : null}
       <span className="dash-errand-foot muted">
         {runner ? `Runner: ${runner}` : "No runner yet"}

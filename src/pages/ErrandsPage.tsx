@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Outlet, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { formatDate } from "../lib/datetime";
 import { getStoredUser } from "../lib/auth";
+import { formatErrandCode } from "../lib/publicId";
 import { useMyErrandsInfiniteQuery } from "../lib/queries";
 import { isProfileComplete } from "../types/api";
 import {
@@ -43,7 +44,10 @@ function ErrandRow({
         <span className="errand-row-title">{errand.title || "Untitled errand"}</span>
         <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
       </span>
-      <span className="errand-row-meta muted">{formatDate(errand.created_at)}</span>
+      <span className="errand-row-meta muted">
+        {formatErrandCode(errand.id)}
+        {errand.created_at ? ` · ${formatDate(errand.created_at)}` : ""}
+      </span>
       {route ? <span className="errand-row-route">{route}</span> : null}
       <span className="errand-row-foot muted">
         {runner ? <span>Runner: {runner}</span> : <span>No runner yet</span>}
@@ -68,7 +72,9 @@ export function ErrandsPage() {
 
   const [query, setQuery] = useState("");
   const { data, error, isPending, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } =
-    useMyErrandsInfiniteQuery(status);
+    useMyErrandsInfiniteQuery(status, {
+      refetchInterval: status === "completed" || status === "cancelled" ? false : 15_000,
+    });
 
   const errands = useMemo(
     () => data?.pages.flatMap((p) => p.errands) ?? [],

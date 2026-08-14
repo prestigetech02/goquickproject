@@ -49,14 +49,13 @@ import {
 import { fetchWallet, fetchWalletTransactions, fundWallet, verifyWalletFunding } from "./walletApi";
 import { getStoredUser, setStoredUser } from "./auth";
 import { queryKeys } from "./queryClient";
-import { removeOptimisticMessage, upsertChatMessage } from "./chatCache";
+import { removeOptimisticMessage, removeThreadFromChats, setThreadUnread, upsertChatMessage } from "./chatCache";
 import type { NotificationSettings, User } from "../types/api";
 import type { NotificationListResult } from "./notificationApi";
 import type { AppNotification } from "../types/notification";
 import type {
   ChatMessage,
   ChatMessagesPayload,
-  ChatThreadsPage,
 } from "../types/chat";
 import type { Errand, ErrandStatusFilter } from "../types/errand";
 
@@ -325,7 +324,9 @@ export function useChatThreadsInfiniteQuery() {
 export function useChatThreadsQuery() {
   const query = useChatThreadsInfiniteQuery();
   const threads = query.data?.pages.flatMap((p) => p.threads) ?? [];
-  const unreadTotal = query.data?.pages[0]?.unread_total ?? 0;
+  const unreadFromThreads = threads.reduce((sum, t) => sum + (t.unread_count || 0), 0);
+  const unreadFromApi = query.data?.pages[0]?.unread_total ?? 0;
+  const unreadTotal = Math.max(unreadFromThreads, unreadFromApi);
   return { ...query, data: threads, unreadTotal };
 }
 
@@ -334,21 +335,7 @@ export function useArchiveChatMutation() {
   return useMutation({
     mutationFn: (threadId: number) => archiveChatThread(threadId),
     onSuccess: (_data, threadId) => {
-      qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            threads: page.threads.filter((t) => t.id !== threadId),
-            unread_total: Math.max(
-              0,
-              page.unread_total -
-                (page.threads.find((t) => t.id === threadId)?.unread_count ?? 0),
-            ),
-          })),
-        };
-      });
+      removeThreadFromChats(qc, threadId);
       void qc.invalidateQueries({ queryKey: queryKeys.chatsArchived });
     },
   });
@@ -458,23 +445,7 @@ export function useMarkChatReadMutation(threadId: number) {
   return useMutation({
     mutationFn: () => markChatThreadRead(threadId),
     onSuccess: () => {
-      qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => {
-            const target = page.threads.find((t) => t.id === threadId);
-            const cleared = target?.unread_count ?? 0;
-            return {
-              ...page,
-              unread_total: Math.max(0, page.unread_total - cleared),
-              threads: page.threads.map((t) =>
-                t.id === threadId ? { ...t, unread_count: 0, missed_call_count: 0 } : t,
-              ),
-            };
-          }),
-        };
-      });
+      setThreadUnread(qc, threadId, 0);
     },
   });
 }
@@ -570,9 +541,13 @@ export function useSendChatMessageMutation(threadId: number) {
   });
 }
 
-export function useMyErrandsInfiniteQuery(status: ErrandStatusFilter) {
+export function useMyErrandsInfiniteQuery(
+  status: ErrandStatusFilter,
+  options?: { refetchInterval?: number | false },
+) {
   return useInfiniteQuery({
     queryKey: queryKeys.errands(status),
+    refetchInterval: options?.refetchInterval,
     queryFn: async ({ pageParam }) => {
       const res = await fetchMyErrands({
         status: status === "all" ? undefined : status,
@@ -594,10 +569,14 @@ export function useMyErrandsInfiniteQuery(status: ErrandStatusFilter) {
   });
 }
 
-export function useErrandQuery(errandId: number | null) {
+export function useErrandQuery(
+  errandId: number | null,
+  options?: { refetchInterval?: number | false },
+) {
   return useQuery({
     queryKey: queryKeys.errand(errandId ?? 0),
     enabled: errandId != null && errandId > 0,
+    refetchInterval: options?.refetchInterval,
     queryFn: async () => {
       const res = await fetchErrand(errandId!);
       if (!res.success || !res.data) {
@@ -770,6 +749,7 @@ export function useErrandStatsQuery() {
 export function useActiveErrandsPreviewQuery(limit = 3) {
   return useQuery({
     queryKey: [...queryKeys.errands("active"), "preview", limit] as const,
+    refetchInterval: 15_000,
     queryFn: async () => {
       const res = await fetchMyErrands({ status: "active", page: 1, perPage: limit });
       if (!res.success || !res.data) {

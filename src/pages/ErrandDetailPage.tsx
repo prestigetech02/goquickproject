@@ -9,6 +9,7 @@ import { RejectProofModal } from "../components/RejectProofModal";
 import { ReviewRunnerModal } from "../components/ReviewRunnerModal";
 import { useToast } from "../components/ToastProvider";
 import { formatDateTime } from "../lib/datetime";
+import { formatErrandCode } from "../lib/publicId";
 import { createOrGetChatThread } from "../lib/errandApi";
 import { getApiErrorMessage } from "../lib/http";
 import {
@@ -27,6 +28,7 @@ import {
   canReviewRunner,
   errandStatusLabel,
   errandStatusTone,
+  errandDisplayAmount,
   formatNaira,
   proofStatusLabel,
   runnerDisplayName,
@@ -57,19 +59,12 @@ export function ErrandDetailPage() {
   const errandId = rawId ? Number(rawId) : null;
   const validId = errandId != null && !Number.isNaN(errandId) && errandId > 0 ? errandId : null;
 
-  const { data: errand, error, isPending, refetch } = useErrandQuery(validId);
-  const showOffers =
-    !!errand &&
-    ["searching", "pending"].includes(errand.status.toLowerCase()) &&
-    !errand.runner_id;
-  const showTracking = !!errand && isTrackableErrandStatus(errand.status);
   const [runnerLivePos, setRunnerLivePos] = useState<LiveRunnerPosition | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
 
-  // Reset live marker when switching errands.
   const onRunnerLocation = useCallback(
     (payload: { latitude?: number; longitude?: number; updated_at?: string }) => {
       if (payload.latitude == null || payload.longitude == null) return;
@@ -83,10 +78,19 @@ export function ErrandDetailPage() {
   );
 
   const { live: errandLive } = useErrandRealtime(validId, {
-    listenOffers: showOffers,
-    listenRunnerLocation: showTracking,
-    onRunnerLocation: showTracking ? onRunnerLocation : undefined,
+    listenOffers: true,
+    listenRunnerLocation: true,
+    onRunnerLocation,
   });
+
+  const { data: errand, error, isPending, refetch } = useErrandQuery(validId, {
+    refetchInterval: errandLive ? false : 8_000,
+  });
+  const showOffers =
+    !!errand &&
+    ["searching", "pending"].includes(errand.status.toLowerCase()) &&
+    !errand.runner_id;
+  const showTracking = !!errand && isTrackableErrandStatus(errand.status);
   const { data: offers = [] } = useErrandOffersQuery(validId, showOffers, {
     refetchInterval: showOffers && !errandLive ? 12_000 : false,
   });
@@ -227,6 +231,7 @@ export function ErrandDetailPage() {
 
   const runnerName = runnerDisplayName(errand.runner);
   const pendingOffers = offers.filter((o) => o.status === "pending");
+  const displayAmount = errandDisplayAmount(errand);
 
   return (
     <div className="page errand-detail">
@@ -237,7 +242,10 @@ export function ErrandDetailPage() {
       <header className="errand-detail-header">
         <div>
           <h1>{errand.title || "Untitled errand"}</h1>
-          <p className="muted">{formatDateTime(errand.created_at)}</p>
+          <p className="muted">
+            {formatErrandCode(errand.id)}
+            {errand.created_at ? ` · ${formatDateTime(errand.created_at)}` : ""}
+          </p>
         </div>
         <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
       </header>
@@ -344,7 +352,7 @@ export function ErrandDetailPage() {
         )}
       </section>
 
-      {(errand.runner || errand.payment) && (
+      {(errand.runner || errand.payment || displayAmount != null) && (
         <section className="card stack">
           <h2 className="profile-card-title">Runner</h2>
           {errand.runner ? (
@@ -391,19 +399,19 @@ export function ErrandDetailPage() {
           ) : (
             <p className="muted">No runner assigned yet.</p>
           )}
+          {displayAmount != null ? (
+            <div className="errand-kv">
+              <span className="muted">Amount</span>
+              <span>{formatNaira(displayAmount)}</span>
+            </div>
+          ) : null}
           {errand.payment ? (
-            <>
-              <div className="errand-kv">
-                <span className="muted">Amount</span>
-                <span>{formatNaira(errand.payment.amount)}</span>
-              </div>
-              <div className="errand-kv">
-                <span className="muted">Payment</span>
-                <span className={`errand-payment-status status-${errand.payment.status.toLowerCase()}`}>
-                  {errand.payment.status.replace(/_/g, " ")}
-                </span>
-              </div>
-            </>
+            <div className="errand-kv">
+              <span className="muted">Payment</span>
+              <span className={`errand-payment-status status-${errand.payment.status.toLowerCase()}`}>
+                {errand.payment.status.replace(/_/g, " ")}
+              </span>
+            </div>
           ) : null}
         </section>
       )}
@@ -448,6 +456,12 @@ export function ErrandDetailPage() {
               Rejection reason: {errand.proof.rejection_reason}
             </p>
           ) : null}
+          {canActOnProof(errand) &&
+          (errand.proof.status || "").toLowerCase() === "rejected" ? (
+            <p className="muted" style={{ margin: 0 }}>
+              You can still accept this completion or reject it again.
+            </p>
+          ) : null}
           {errand.proof.proof_photos?.length ? (
             <div className="errand-proof-grid">
               {errand.proof.proof_photos.map((url) => (
@@ -467,7 +481,9 @@ export function ErrandDetailPage() {
                 disabled={acceptProof.isPending || rejectProof.isPending}
                 onClick={() => setRejectOpen(true)}
               >
-                Reject
+                {(errand.proof.status || "").toLowerCase() === "rejected"
+                  ? "Reject again"
+                  : "Reject"}
               </button>
               <button
                 type="button"

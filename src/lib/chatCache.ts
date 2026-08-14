@@ -22,6 +22,95 @@ function emptyMessagesPayload(message: ChatMessage): ChatMessagesPayload {
   };
 }
 
+/** Currently open chat thread (nav badge skips incrementing this one). */
+let activeChatThreadId: number | null = null;
+
+export function setActiveChatThreadId(id: number | null) {
+  activeChatThreadId = id;
+}
+
+export function getActiveChatThreadId(): number | null {
+  return activeChatThreadId;
+}
+
+function withUnreadTotal(
+  old: InfiniteData<ChatThreadsPage>,
+  nextTotal: number,
+  mapThreads: (page: ChatThreadsPage) => ChatThreadsPage["threads"],
+): InfiniteData<ChatThreadsPage> {
+  const total = Math.max(0, nextTotal);
+  return {
+    ...old,
+    pages: old.pages.map((page) => ({
+      ...page,
+      unread_total: total,
+      threads: mapThreads(page),
+    })),
+  };
+}
+
+function findThreadUnread(old: InfiniteData<ChatThreadsPage>, threadId: number): number | null {
+  for (const page of old.pages) {
+    const t = page.threads.find((x) => x.id === threadId);
+    if (t) return t.unread_count;
+  }
+  return null;
+}
+
+/** Set a thread's unread count and keep global unread_total in sync on every page. */
+export function setThreadUnread(qc: QueryClient, threadId: number, unreadCount: number) {
+  let missingFromCache = false;
+  qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
+    if (!old) return old;
+    const prev = findThreadUnread(old, threadId);
+    if (prev == null) {
+      missingFromCache = unreadCount === 0;
+      if (unreadCount === 0) return old;
+      const currentTotal = old.pages[0]?.unread_total ?? 0;
+      return withUnreadTotal(old, currentTotal + unreadCount, (page) => page.threads);
+    }
+    const currentTotal = old.pages[0]?.unread_total ?? 0;
+    const delta = unreadCount - prev;
+    return withUnreadTotal(old, currentTotal + delta, (page) =>
+      page.threads.map((t) =>
+        t.id === threadId
+          ? {
+              ...t,
+              unread_count: unreadCount,
+              missed_call_count: unreadCount === 0 ? 0 : t.missed_call_count,
+            }
+          : t,
+      ),
+    );
+  });
+  if (missingFromCache) {
+    void qc.invalidateQueries({ queryKey: queryKeys.chats });
+  }
+}
+
+export function incrementThreadUnread(qc: QueryClient, threadId: number) {
+  qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
+    if (!old) return old;
+    const currentTotal = old.pages[0]?.unread_total ?? 0;
+    return withUnreadTotal(old, currentTotal + 1, (page) =>
+      page.threads.map((t) =>
+        t.id === threadId ? { ...t, unread_count: t.unread_count + 1 } : t,
+      ),
+    );
+  });
+}
+
+export function removeThreadFromChats(qc: QueryClient, threadId: number) {
+  qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
+    if (!old) return old;
+    const prev = findThreadUnread(old, threadId) ?? 0;
+    const currentTotal = old.pages[0]?.unread_total ?? 0;
+    return withUnreadTotal(old, currentTotal - prev, (page) =>
+      page.threads.filter((t) => t.id !== threadId),
+    );
+  });
+}
+
 export function upsertChatMessage(
   qc: QueryClient,
   threadId: number,

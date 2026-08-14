@@ -45,7 +45,7 @@ export function SignupPage() {
       await sendOtp(normalized);
       setPhone(normalized);
       setStep("otp");
-      toast.success("We sent a 5-digit code to your phone.");
+      toast.success("We sent a 6-digit code to your phone.");
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Could not send OTP."));
     } finally {
@@ -138,7 +138,7 @@ export function SignupPage() {
             id="otp"
             type="text"
             inputMode="numeric"
-            maxLength={5}
+            maxLength={6}
             placeholder="12345"
             value={otp}
             onChange={(e) => setOtp(e.target.value)}

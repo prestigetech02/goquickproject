@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { applyErrandStatusPayload } from "./errandCache";
 import { getEcho } from "./echo";
 import { queryKeys } from "./queryClient";
-import type { Errand, ErrandOffer } from "../types/errand";
+import type { ErrandOffer } from "../types/errand";
 
 type StatusPayload = {
   errand_id?: number;
@@ -57,26 +58,19 @@ export function useErrandRealtime(
 
     try {
       const channel = echo.private(channelName);
-      setLive(true);
+      setLive(false);
+
+      channel.subscribed(() => {
+        if (!cancelled) setLive(true);
+      });
+      channel.error(() => {
+        if (!cancelled) setLive(false);
+      });
 
       channel.listen(".errand.status.updated", (payload: StatusPayload) => {
         if (cancelled) return;
-        const status = payload?.status;
-        if (status) {
-          qc.setQueryData(queryKeys.errand(errandId), (prev: Errand | undefined) =>
-            prev
-              ? {
-                  ...prev,
-                  status,
-                  updated_at: payload.updated_at ?? prev.updated_at,
-                }
-              : prev,
-          );
-        }
-        void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
-        void qc.invalidateQueries({ queryKey: ["errands"] });
+        applyErrandStatusPayload(qc, payload);
         void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
-        void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
         void qc.invalidateQueries({ queryKey: queryKeys.errandTracking(errandId) });
       });
 
@@ -91,7 +85,6 @@ export function useErrandRealtime(
             }
             return [offer, ...list];
           });
-          void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
         });
       }
 

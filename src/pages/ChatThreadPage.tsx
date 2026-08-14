@@ -9,6 +9,7 @@ import {
 import { useLocation, useParams } from "react-router-dom";
 import { ChatArchivesMenu } from "../components/ChatArchivesMenu";
 import { formatDayLabel, formatTime } from "../lib/datetime";
+import { formatChatCode, formatErrandCode } from "../lib/publicId";
 import { getApiErrorMessage } from "../lib/http";
 import {
   useChatMessagesQuery,
@@ -17,6 +18,8 @@ import {
   useMarkChatReadMutation,
   useSendChatMessageMutation,
 } from "../lib/queries";
+import { setActiveChatThreadId, setThreadUnread } from "../lib/chatCache";
+import { queryClient } from "../lib/queryClient";
 import { useChatThreadRealtime } from "../lib/useChatThreadRealtime";
 import type { ChatMessage } from "../types/chat";
 
@@ -187,7 +190,6 @@ export function ChatThreadPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const markedRef = useRef<number | null>(null);
   const prevLenRef = useRef(0);
   const stickBottomRef = useRef(true);
   const typingActiveRef = useRef(false);
@@ -275,20 +277,22 @@ export function ChatThreadPage() {
   }
 
   useEffect(() => {
-    if (validId == null) return;
-    if (markedRef.current === validId) return;
-    markedRef.current = validId;
-    void markRead.mutateAsync().catch(() => {
-      // non-critical
-    });
-  }, [validId, markRead]);
-
-  useEffect(() => {
     setDraft("");
     setReplyTo(null);
     setPendingFile(null);
     setSendError(null);
-    markedRef.current = null;
+  }, [validId]);
+
+  useEffect(() => {
+    if (validId == null) return;
+    setActiveChatThreadId(validId);
+    setThreadUnread(queryClient, validId, 0);
+    void markRead.mutateAsync().catch(() => {
+      // non-critical
+    });
+    return () => setActiveChatThreadId(null);
+    // markRead.mutateAsync identity can change; only re-run when the thread changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validId]);
 
   async function handleSend(e?: FormEvent) {
@@ -369,15 +373,20 @@ export function ChatThreadPage() {
               className={`chat-thread-status${peerTyping || isOnline ? " online" : ""}`}
             >
               <span className="chat-thread-status-dot" aria-hidden="true" />
-              {peerTyping
-                ? "Typing…"
-                : isOnline
-                  ? "Active"
-                  : errandId != null
-                    ? `Errand #${errandId}`
-                    : isFetching && !isPending
-                      ? "Updating…"
-                      : "Offline"}
+              {(() => {
+                const publicId =
+                  errandId != null
+                    ? formatErrandCode(errandId)
+                    : Number.isFinite(threadId) && threadId > 0
+                      ? formatChatCode(threadId)
+                      : "";
+                if (peerTyping) return "Typing…";
+                if (publicId && isOnline) return `${publicId} · Active`;
+                if (isOnline) return "Active";
+                if (publicId) return publicId;
+                if (isFetching && !isPending) return "Updating…";
+                return "Offline";
+              })()}
             </span>
           </span>
         </div>

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { CustomPinMap } from "./CustomPinMap";
 import { getApiErrorMessage } from "../lib/http";
 import {
   createPlacesSessionToken,
@@ -18,6 +19,9 @@ type Props = {
 };
 
 type UserCoords = { latitude: number; longitude: number };
+type Mode = "search" | "custom";
+
+const LAGOS = { latitude: 6.5244, longitude: 3.3792 };
 
 function predictionAddress(prediction: PlacePrediction): string {
   const main = prediction.structured_formatting?.main_text?.trim();
@@ -32,14 +36,20 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionTokenRef = useRef(createPlacesSessionToken());
   const pickingRef = useRef(false);
+  const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
 
+  const [customLabel, setCustomLabel] = useState("");
+  const [pinLat, setPinLat] = useState(LAGOS.latitude);
+  const [pinLng, setPinLng] = useState(LAGOS.longitude);
+  const [customError, setCustomError] = useState<string | null>(null);
+
   useEffect(() => {
-    inputRef.current?.focus();
+    if (mode === "search") inputRef.current?.focus();
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKey(e: KeyboardEvent) {
@@ -50,16 +60,19 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [onClose, mode]);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setUserCoords({
+        const coords = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
-        });
+        };
+        setUserCoords(coords);
+        setPinLat(coords.latitude);
+        setPinLng(coords.longitude);
       },
       () => {
         /* server-side Lagos proximity bias */
@@ -69,6 +82,7 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
   }, []);
 
   useEffect(() => {
+    if (mode !== "search") return;
     const q = query.trim();
     if (q.length < 2) {
       setPredictions([]);
@@ -110,7 +124,7 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query, userCoords]);
+  }, [query, userCoords, mode]);
 
   function handlePick(prediction: PlacePrediction) {
     if (pickingRef.current) return;
@@ -119,13 +133,13 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
     const previewAddress = predictionAddress(prediction);
     const sessionToken = prediction.session_token || sessionTokenRef.current;
 
-    // Instant: close picker and show the chosen label while coords resolve.
     onSelect({
       address: previewAddress,
       latitude: Number.NaN,
       longitude: Number.NaN,
       placeId: prediction.place_id,
       resolving: true,
+      isCustom: false,
     });
 
     void (async () => {
@@ -145,6 +159,7 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
           longitude: place.longitude,
           placeId: place.place_id,
           resolving: false,
+          isCustom: false,
         });
       } catch (err) {
         onSelectFailed?.(getApiErrorMessage(err, "Could not use that location"));
@@ -152,10 +167,46 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
     })();
   }
 
+  function handleConfirmCustom() {
+    const label = customLabel.trim();
+    if (label.length < 3) {
+      setCustomError("Enter a short address or landmark description.");
+      return;
+    }
+    if (!Number.isFinite(pinLat) || !Number.isFinite(pinLng)) {
+      setCustomError("Drop a pin on the map.");
+      return;
+    }
+    setCustomError(null);
+    onSelect({
+      address: label,
+      latitude: pinLat,
+      longitude: pinLng,
+      resolving: false,
+      isCustom: true,
+    });
+  }
+
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      setCustomError("Location is not available on this device.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPinLat(pos.coords.latitude);
+        setPinLng(pos.coords.longitude);
+        setCustomError(null);
+      },
+      () => setCustomError("Could not get your current location."),
+      { enableHighAccuracy: true, timeout: 12_000 },
+    );
+  }
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div
-        className="modal-panel location-picker-modal"
+        className={`modal-panel location-picker-modal${mode === "custom" ? " custom-mode" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -170,55 +221,129 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
           </button>
         </div>
 
-        <label className="location-picker-search">
-          <span className="sr-only">Search address</span>
-          <input
-            ref={inputRef}
-            type="search"
-            placeholder="Search places, streets, addresses…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoComplete="off"
-          />
-        </label>
-
-        {error ? <p className="error">{error}</p> : null}
-
-        <div className="location-picker-results" aria-live="polite">
-          {loading ? <p className="muted location-picker-hint">Searching…</p> : null}
-          {!loading && query.trim().length >= 2 && predictions.length === 0 ? (
-            <p className="muted location-picker-hint">No places found.</p>
-          ) : null}
-          {!loading && query.trim().length < 2 ? (
-            <p className="muted location-picker-hint">
-              Try a place name, street, landmark, or address.
-            </p>
-          ) : null}
-          <ul className="location-picker-list">
-            {predictions.map((p) => {
-              const main = p.structured_formatting?.main_text || p.description;
-              const secondary = p.structured_formatting?.secondary_text;
-              const typeLabel = featureTypeLabel(p.feature_type, p.poi_categories);
-              return (
-                <li key={p.place_id}>
-                  <button
-                    type="button"
-                    className="location-picker-item"
-                    onClick={() => handlePick(p)}
-                  >
-                    <span className="location-picker-item-top">
-                      <span className="location-picker-main">{main}</span>
-                      <span className="location-picker-type">{typeLabel}</span>
-                    </span>
-                    {secondary ? (
-                      <span className="location-picker-secondary muted">{secondary}</span>
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+        <div className="location-picker-mode" role="tablist" aria-label="Location method">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "search"}
+            className={`location-picker-mode-btn${mode === "search" ? " selected" : ""}`}
+            onClick={() => setMode("search")}
+          >
+            Search
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "custom"}
+            className={`location-picker-mode-btn${mode === "custom" ? " selected" : ""}`}
+            onClick={() => setMode("custom")}
+          >
+            Custom address
+          </button>
         </div>
+
+        {mode === "search" ? (
+          <>
+            <label className="location-picker-search">
+              <span className="sr-only">Search address</span>
+              <input
+                ref={inputRef}
+                type="search"
+                placeholder="Search places, streets, addresses…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoComplete="off"
+              />
+            </label>
+
+            {error ? <p className="error">{error}</p> : null}
+
+            <div className="location-picker-results" aria-live="polite">
+              {loading ? <p className="muted location-picker-hint">Searching…</p> : null}
+              {!loading && query.trim().length >= 2 && predictions.length === 0 ? (
+                <p className="muted location-picker-hint">
+                  No places found.{" "}
+                  <button type="button" className="location-picker-link" onClick={() => setMode("custom")}>
+                    Enter a custom address
+                  </button>
+                </p>
+              ) : null}
+              {!loading && query.trim().length < 2 ? (
+                <p className="muted location-picker-hint">
+                  Try a place name, street, landmark, or address. Can&apos;t find it?{" "}
+                  <button type="button" className="location-picker-link" onClick={() => setMode("custom")}>
+                    Use custom address
+                  </button>
+                </p>
+              ) : null}
+              <ul className="location-picker-list">
+                {predictions.map((p) => {
+                  const main = p.structured_formatting?.main_text || p.description;
+                  const secondary = p.structured_formatting?.secondary_text;
+                  const typeLabel = featureTypeLabel(p.feature_type, p.poi_categories);
+                  return (
+                    <li key={p.place_id}>
+                      <button
+                        type="button"
+                        className="location-picker-item"
+                        onClick={() => handlePick(p)}
+                      >
+                        <span className="location-picker-item-top">
+                          <span className="location-picker-main">{main}</span>
+                          <span className="location-picker-type">{typeLabel}</span>
+                        </span>
+                        {secondary ? (
+                          <span className="location-picker-secondary muted">{secondary}</span>
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </>
+        ) : (
+          <div className="location-picker-custom stack">
+            <label>
+              <span className="label">Address / landmark</span>
+              <textarea
+                rows={2}
+                placeholder="e.g. Opposite Shoprite Magodo, second gate after the red fence"
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                maxLength={255}
+              />
+            </label>
+
+            <div className="location-picker-pin-actions">
+              <p className="muted location-picker-hint" style={{ margin: 0 }}>
+                Drag the pin or tap the map so runners know exactly where to go.
+              </p>
+              <button type="button" className="btn-secondary location-picker-geo-btn" onClick={useMyLocation}>
+                Use my location
+              </button>
+            </div>
+
+            <CustomPinMap
+              latitude={pinLat}
+              longitude={pinLng}
+              onMove={(lat, lng) => {
+                setPinLat(lat);
+                setPinLng(lng);
+              }}
+            />
+
+            <p className="muted location-picker-coords">
+              Pin: {pinLat.toFixed(5)}, {pinLng.toFixed(5)}
+            </p>
+
+            {customError ? <p className="error">{customError}</p> : null}
+
+            <button type="button" className="btn-primary" onClick={handleConfirmCustom}>
+              Use this location
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

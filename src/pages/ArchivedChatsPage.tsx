@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchArchivedChatThreads, fetchChatMessages, MESSAGES_PAGE_SIZE } from "../lib/chatApi";
 import { formatShortDate } from "../lib/datetime";
+import { formatChatCode, formatErrandCode } from "../lib/publicId";
 import { http } from "../lib/http";
 import { queryClient, queryKeys } from "../lib/queryClient";
 import type { ApiResponse } from "../types/api";
@@ -124,7 +125,9 @@ export function ArchivedChatsPage() {
                       <span className="chat-time">{formatShortDate(thread.last_message_at)}</span>
                     </span>
                     <span className="chat-preview">
-                      {thread.last_message?.trim() || "No messages"}
+                      {thread.errand_id
+                        ? `${formatErrandCode(thread.errand_id)} · ${thread.last_message?.trim() || "No messages"}`
+                        : `${formatChatCode(thread.id)} · ${thread.last_message?.trim() || "No messages"}`}
                     </span>
                   </span>
                   <span
