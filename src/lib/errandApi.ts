@@ -226,8 +226,9 @@ export async function estimateErrand(payload: {
   category: string;
   pickup_latitude: number;
   pickup_longitude: number;
-  dropoff_latitude: number;
-  dropoff_longitude: number;
+  dropoff_latitude?: number | null;
+  dropoff_longitude?: number | null;
+  expected_wait_minutes?: number | null;
 }) {
   try {
     const { data } = await http.post<ApiResponse<ErrandEstimate>>("/errands/estimate", payload);

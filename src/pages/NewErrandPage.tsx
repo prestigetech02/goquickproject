@@ -277,6 +277,7 @@ export function NewErrandPage() {
 
     const dropLat = showDropoff ? dropoff!.latitude : pickup!.latitude;
     const dropLng = showDropoff ? dropoff!.longitude : pickup!.longitude;
+    const wait = category === "queue" ? Number(waitMinutes) : null;
 
     let cancelled = false;
     setEstimateLoading(true);
@@ -287,20 +288,20 @@ export function NewErrandPage() {
           category,
           pickup_latitude: pickup!.latitude,
           pickup_longitude: pickup!.longitude,
-          dropoff_latitude: dropLat,
-          dropoff_longitude: dropLng,
+          dropoff_latitude: showDropoff ? dropLat : null,
+          dropoff_longitude: showDropoff ? dropLng : null,
+          expected_wait_minutes:
+            wait != null && Number.isFinite(wait) && wait > 0 ? wait : null,
         });
         if (cancelled) return;
         setEstimateLoading(false);
         if (!res.success || !res.data) {
           if (res.error?.code === "ZONE_NOT_SERVICEABLE") {
             setZoneError(res.error.message ?? "This route is outside our service zones.");
-            setEstimate(null);
           } else {
             setZoneError(null);
-            setEstimate(null);
-            toast.error(res.error?.message ?? "Could not estimate price.");
           }
+          setEstimate(null);
           return;
         }
         setEstimate(res.data);
@@ -314,7 +315,7 @@ export function NewErrandPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [pickup, dropoff, category, showDropoff, toast]);
+  }, [pickup, dropoff, category, showDropoff, waitMinutes]);
 
   useEffect(() => {
     if (!estimate?.suggested_price) {
