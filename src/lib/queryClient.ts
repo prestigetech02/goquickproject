@@ -20,6 +20,7 @@ export const queryKeys = {
   profile: ["profile"] as const,
   notificationSettings: ["profile", "notification-settings"] as const,
   notifications: ["notifications"] as const,
+  notificationsPreview: ["notifications", "preview"] as const,
   notificationsUnread: ["notifications", "unread-count"] as const,
   chats: ["chats"] as const,
   chatsArchived: ["chats", "archived"] as const,

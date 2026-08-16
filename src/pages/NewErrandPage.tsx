@@ -690,12 +690,12 @@ export function NewErrandPage() {
               </p>
 
               <label className="new-errand-offer">
-                <span className="label">Your offer (₦) — optional</span>
+                <span className="label">Or set your own price</span>
                 <input
                   type="text"
                   inputMode="decimal"
                   autoComplete="off"
-                  placeholder="Leave blank to use the platform estimate"
+                  placeholder="5,000"
                   value={offerAmount}
                   onChange={(e) => setOfferAmount(e.target.value)}
                 />

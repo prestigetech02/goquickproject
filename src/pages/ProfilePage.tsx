@@ -187,6 +187,7 @@ export function ProfilePage() {
             </div>
           </section>
 
+          {config.referralEnabled ? (
           <div className="profile-cards-row">
             <section className="card profile-referral-card">
               <h2 className="profile-card-title">Invite &amp; earn</h2>
@@ -210,6 +211,7 @@ export function ProfilePage() {
               ) : null}
             </section>
           </div>
+          ) : null}
 
           <nav className="card profile-menu" aria-label="Account">
             <MenuLink

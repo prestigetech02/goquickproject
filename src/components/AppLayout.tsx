@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState, type ReactNode } from "react";
+import { NotificationsPopover } from "./NotificationsPopover";
 import { getStoredUser } from "../lib/auth";
 import { useChatThreadsQuery, useProfileQuery, useUnreadNotificationCountQuery } from "../lib/queries";
 import { useUserRealtime } from "../lib/useUserRealtime";
@@ -49,25 +50,6 @@ function IconProfile() {
       <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
       <path
         d="M5 19.5c1.5-3.5 4-5 7-5s5.5 1.5 7 5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconBell() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M6 9a6 6 0 0112 0c0 7 3 7 3 9H3c0-2 3-2 3-9"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10 20a2 2 0 004 0"
         stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"
@@ -153,8 +135,6 @@ export function AppLayout() {
     };
   }, []);
 
-  const badgeLabel = unreadCount > 99 ? "99+" : String(unreadCount);
-
   return (
     <div className={`app-shell${keyboardOpen ? " hide-bottom-nav" : ""}`}>
       <header className="app-header">
@@ -163,21 +143,7 @@ export function AppLayout() {
             <img src="/goquick.png" alt="GoQuick" className="brand-logo" />
           </NavLink>
           <div className="app-header-actions">
-            <NavLink
-              to="/notifications"
-              className="header-icon-btn"
-              aria-label={
-                unreadCount > 0
-                  ? `Notifications, ${unreadCount} unread`
-                  : "Notifications"
-              }
-              title="Notifications"
-            >
-              <IconBell />
-              {unreadCount > 0 ? (
-                <span className="notification-badge">{badgeLabel}</span>
-              ) : null}
-            </NavLink>
+            <NotificationsPopover unreadCount={unreadCount} />
             <NavLink
               to="/profile"
               className="header-avatar"

@@ -4,6 +4,7 @@ import { useToast } from "../components/ToastProvider";
 import { getStoredUser, setStoredUser } from "../lib/auth";
 import { registerProfile } from "../lib/authApi";
 import { getApiErrorMessage } from "../lib/http";
+import { config } from "../lib/config";
 import { NIGERIAN_STATES } from "../lib/nigerianStates";
 import { uploadProfilePicture } from "../lib/profileApi";
 import { queryClient, queryKeys } from "../lib/queryClient";
@@ -90,7 +91,7 @@ export function CompleteProfilePage() {
         address: address.trim(),
         city: city.trim(),
         state: state.trim(),
-        referral_code: referralCode.trim() || undefined,
+        referral_code: config.referralEnabled ? referralCode.trim() || undefined : undefined,
       });
 
       if (!res.success) {
@@ -267,14 +268,18 @@ export function CompleteProfilePage() {
           ))}
         </select>
 
-        <label htmlFor="referral">Referral code (optional)</label>
-        <input
-          id="referral"
-          value={referralCode}
-          onChange={(e) => setReferralCode(e.target.value)}
-          placeholder="Enter referral code if you have one"
-          autoComplete="off"
-        />
+        {config.referralEnabled ? (
+          <>
+            <label htmlFor="referral">Referral code (optional)</label>
+            <input
+              id="referral"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value)}
+              placeholder="Enter referral code if you have one"
+              autoComplete="off"
+            />
+          </>
+        ) : null}
 
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? "Saving…" : "Save and continue"}

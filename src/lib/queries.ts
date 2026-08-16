@@ -221,6 +221,20 @@ export function useUnreadNotificationCountQuery() {
   });
 }
 
+export function useNotificationsPreviewQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.notificationsPreview,
+    queryFn: async () => {
+      const res = await fetchNotifications({ page: 1, perPage: 5 });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load notifications");
+      }
+      return res.data.items.slice(0, 5);
+    },
+    enabled,
+  });
+}
+
 export function useNotificationsInfiniteQuery() {
   return useInfiniteQuery({
     queryKey: queryKeys.notifications,
@@ -254,6 +268,13 @@ export function useNotificationMutations() {
     });
   };
 
+  const patchPreview = (updater: (items: AppNotification[]) => AppNotification[]) => {
+    qc.setQueryData<AppNotification[]>(queryKeys.notificationsPreview, (old) => {
+      if (!old) return old;
+      return updater(old);
+    });
+  };
+
   const markRead = useMutation({
     mutationFn: (id: number) => markNotificationRead(id),
     onSuccess: (_data, id) => {
@@ -264,6 +285,9 @@ export function useNotificationMutations() {
             n.id === id ? { ...n, is_read: true } : n,
           ),
         })),
+      );
+      patchPreview((items) =>
+        items.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
       );
       void qc.invalidateQueries({ queryKey: queryKeys.notificationsUnread });
     },
@@ -278,6 +302,7 @@ export function useNotificationMutations() {
           items: page.items.map((n) => ({ ...n, is_read: true })),
         })),
       );
+      patchPreview((items) => items.map((n) => ({ ...n, is_read: true })));
       qc.setQueryData(queryKeys.notificationsUnread, 0);
     },
   });
@@ -295,6 +320,7 @@ export function useNotificationMutations() {
           },
         })),
       );
+      patchPreview((items) => items.filter((n) => n.id !== id));
       void qc.invalidateQueries({ queryKey: queryKeys.notificationsUnread });
     },
   });

@@ -69,6 +69,7 @@ export function useUserRealtime() {
         if (cancelled) return;
         void qc.invalidateQueries({ queryKey: queryKeys.notificationsUnread });
         void qc.invalidateQueries({ queryKey: queryKeys.notifications });
+        void qc.invalidateQueries({ queryKey: queryKeys.notificationsPreview });
 
         const nested = payload?.data && typeof payload.data === "object" ? payload.data : {};
         const type = String(payload?.type || nested.type || "").toLowerCase();
