@@ -130,6 +130,14 @@ function descriptionPlaceholder(slug: string) {
   }
 }
 
+function parseOfferAmount(raw: string): number | null {
+  const cleaned = raw.replace(/,/g, "").replace(/\s/g, "").trim();
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
 function buildTitle(slug: string, description: string, typeName: string) {
   const trimmed = description.trim();
   if (trimmed) return trimmed.slice(0, 120);
@@ -177,7 +185,6 @@ export function NewErrandPage() {
   const [offerAmount, setOfferAmount] = useState("");
   const [created, setCreated] = useState<CreateErrandResult | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
-  const offerSeededForEstimate = useRef<string | null>(null);
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -317,20 +324,6 @@ export function NewErrandPage() {
     };
   }, [pickup, dropoff, category, showDropoff, waitMinutes]);
 
-  useEffect(() => {
-    if (!estimate?.suggested_price) {
-      offerSeededForEstimate.current = null;
-      return;
-    }
-    const { min, max, base } = estimate.suggested_price;
-    const seedKey = `${min}-${max}-${base}`;
-    if (offerSeededForEstimate.current === seedKey) return;
-    offerSeededForEstimate.current = seedKey;
-    const mid = Math.round((Number(min) + Number(max)) / 2);
-    const defaultOffer = Number.isFinite(mid) && mid > 0 ? mid : Math.round(Number(base) || Number(min) || 0);
-    setOfferAmount(defaultOffer > 0 ? String(defaultOffer) : "");
-  }, [estimate]);
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
@@ -376,12 +369,13 @@ export function NewErrandPage() {
     }
 
     const floor = Number(estimate.suggested_price.min);
-    const offer = Number(offerAmount.replace(/,/g, "").trim());
-    if (!Number.isFinite(offer) || offer <= 0) {
-      toast.error("Enter your offer amount.");
+    const offerRaw = offerAmount.replace(/,/g, "").trim();
+    const offer = parseOfferAmount(offerAmount);
+    if (offerRaw && offer == null) {
+      toast.error("Enter a valid offer amount, or leave it blank to use the platform estimate.");
       return;
     }
-    if (Number.isFinite(floor) && offer + 0.0001 < floor) {
+    if (offer != null && Number.isFinite(floor) && offer + 0.0001 < floor) {
       toast.error(`Your offer must be at least ${formatNaira(floor)} (platform minimum).`);
       return;
     }
@@ -434,11 +428,12 @@ export function NewErrandPage() {
       : null;
 
   const offerFloor = estimate?.suggested_price?.min ?? null;
-  const offerNum = Number(offerAmount.replace(/,/g, "").trim());
+  const offerNum = parseOfferAmount(offerAmount);
+  const offerInvalid = offerAmount.replace(/,/g, "").trim().length > 0 && offerNum == null;
   const offerBelowFloor =
-    offerFloor != null && Number.isFinite(offerNum) && offerNum > 0 && offerNum + 0.0001 < offerFloor;
+    offerFloor != null && offerNum != null && offerNum + 0.0001 < offerFloor;
   const canSubmit =
-    !create.isPending && !zoneError && Boolean(estimate?.suggested_price) && !offerBelowFloor && offerNum > 0;
+    !create.isPending && !zoneError && Boolean(estimate?.suggested_price) && !offerBelowFloor && !offerInvalid;
 
   return (
     <div className="page new-errand-page">
@@ -695,25 +690,29 @@ export function NewErrandPage() {
               </p>
 
               <label className="new-errand-offer">
-                <span className="label">Your offer (₦)</span>
+                <span className="label">Your offer (₦) — optional</span>
                 <input
-                  type="number"
-                  min={offerFloor ?? 0}
-                  step={50}
-                  inputMode="numeric"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="Leave blank to use the platform estimate"
                   value={offerAmount}
                   onChange={(e) => setOfferAmount(e.target.value)}
-                  required
                 />
               </label>
               {offerBelowFloor ? (
                 <p className="error" style={{ margin: 0, fontSize: "0.85rem" }}>
                   Minimum offer is {formatNaira(offerFloor!)}.
                 </p>
+              ) : offerInvalid ? (
+                <p className="error" style={{ margin: 0, fontSize: "0.85rem" }}>
+                  Enter a valid amount, or leave blank to use the platform estimate.
+                </p>
               ) : (
                 <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-                  Platform estimate {estimatePrice}. You&apos;re offering{" "}
-                  {Number.isFinite(offerNum) && offerNum > 0 ? formatNaira(offerNum) : "—"}.
+                  {offerNum != null
+                    ? `You're offering ${formatNaira(offerNum)}.`
+                    : `Leave blank to post at the platform estimate ${estimatePrice}.`}
                 </p>
               )}
             </>

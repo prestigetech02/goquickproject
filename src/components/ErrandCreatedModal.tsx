@@ -11,16 +11,30 @@ export function ErrandCreatedModal({ result, onContinue }: Props) {
   const titleId = useId();
   const continueRef = useRef<HTMLButtonElement>(null);
   const errand = result.errand;
-  const min = result.suggested_price?.min ?? errand.budget_min;
-  const max = result.suggested_price?.max ?? errand.budget_max;
+  const budgetMin = errand.budget_min != null ? Number(errand.budget_min) : null;
+  const budgetMax = errand.budget_max != null ? Number(errand.budget_max) : null;
+  const customOffer =
+    budgetMin != null &&
+    budgetMax != null &&
+    Number.isFinite(budgetMin) &&
+    Number.isFinite(budgetMax) &&
+    budgetMin > 0 &&
+    Math.abs(budgetMin - budgetMax) < 0.01
+      ? budgetMin
+      : null;
+  const min = customOffer ?? result.suggested_price?.min ?? budgetMin;
+  const max = customOffer ?? result.suggested_price?.max ?? budgetMax;
   const priceText =
-    min != null && max != null
-      ? min === max
-        ? formatNaira(min)
-        : `${formatNaira(min)} – ${formatNaira(max)}`
-      : errand.base_price != null
-        ? formatNaira(errand.base_price)
-        : "—";
+    customOffer != null
+      ? formatNaira(customOffer)
+      : min != null && max != null
+        ? Number(min) === Number(max)
+          ? formatNaira(Number(min))
+          : `${formatNaira(Number(min))} – ${formatNaira(Number(max))}`
+        : errand.base_price != null
+          ? formatNaira(errand.base_price)
+          : "—";
+  const priceLabel = customOffer != null ? "Your offer" : "Estimated price";
 
   useEffect(() => {
     continueRef.current?.focus();
@@ -67,7 +81,7 @@ export function ErrandCreatedModal({ result, onContinue }: Props) {
             </div>
           ) : null}
           <div className="errand-created-row price">
-            <span className="muted">Estimated price</span>
+            <span className="muted">{priceLabel}</span>
             <strong>{priceText}</strong>
           </div>
         </div>
