@@ -12,7 +12,6 @@ export type UserRole = "buyer" | "runner" | "admin";
 
 export type NotificationSettings = {
   push_enabled: boolean;
-  sms_enabled: boolean;
   email_enabled: boolean;
   errand_updates: boolean;
   chat_messages: boolean;

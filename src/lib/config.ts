@@ -25,6 +25,14 @@ export const config = {
   reverbHost: import.meta.env.VITE_REVERB_HOST || "127.0.0.1",
   reverbPort: Number(import.meta.env.VITE_REVERB_PORT || 8080),
   reverbScheme: (import.meta.env.VITE_REVERB_SCHEME || "http").toLowerCase() as "http" | "https",
+  firebase: {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
+    vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || "",
+  },
 } as const;
 
 /** API origin without `/api/v1` (for broadcasting auth, etc.). */

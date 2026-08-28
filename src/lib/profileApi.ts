@@ -68,6 +68,18 @@ export async function updateNotificationSettings(payload: Partial<NotificationSe
   return data;
 }
 
+export async function registerWebFcmToken(fcmToken: string) {
+  const { data } = await http.post<ApiResponse<unknown>>("/user/web-fcm-token", {
+    fcm_token: fcmToken,
+  });
+  return data;
+}
+
+export async function clearWebFcmToken() {
+  const { data } = await http.delete<ApiResponse<unknown>>("/user/web-fcm-token");
+  return data;
+}
+
 export async function deactivateAccount(password: string) {
   const { data } = await http.post<ApiResponse<unknown>>("/user/deactivate-account", {
     password,

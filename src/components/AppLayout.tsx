@@ -4,6 +4,7 @@ import { NotificationsPopover } from "./NotificationsPopover";
 import { getStoredUser } from "../lib/auth";
 import { useChatThreadsQuery, useProfileQuery, useUnreadNotificationCountQuery } from "../lib/queries";
 import { useUserRealtime } from "../lib/useUserRealtime";
+import { useWebPush } from "../lib/useWebPush";
 
 function IconHome() {
   return (
@@ -102,6 +103,7 @@ export function AppLayout() {
   const { unreadTotal: chatUnread = 0, refetch: refetchChats } = useChatThreadsQuery();
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const { live: notificationsLive } = useUserRealtime();
+  useWebPush();
 
   // Soft poll while shell is mounted; remounts reuse cache (no refetch on navigate).
   // When user-channel realtime is live, poll less often.
