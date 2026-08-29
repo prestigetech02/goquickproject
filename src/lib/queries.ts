@@ -397,6 +397,8 @@ export function useChatMessagesQuery(threadId: number | null, options?: { live?:
             ...existing,
             current_user_id: res.data.current_user_id || existing.current_user_id,
             peer: res.data.peer.id ? res.data.peer : existing.peer,
+            is_read_only: res.data.is_read_only ?? existing.is_read_only,
+            errand_status: res.data.errand_status ?? existing.errand_status,
           };
         }
         const byKey = new Map<string, ChatMessage>();
@@ -418,6 +420,8 @@ export function useChatMessagesQuery(threadId: number | null, options?: { live?:
           current_user_id: res.data.current_user_id || existing.current_user_id,
           peer: res.data.peer.id ? res.data.peer : existing.peer,
           has_more: existing.has_more,
+          is_read_only: res.data.is_read_only ?? existing.is_read_only,
+          errand_status: res.data.errand_status ?? existing.errand_status,
         };
       }
 
@@ -573,6 +577,8 @@ export function useMyErrandsInfiniteQuery(
 ) {
   return useInfiniteQuery({
     queryKey: queryKeys.errands(status),
+    staleTime: 30_000,
+    refetchOnMount: "always",
     refetchInterval: options?.refetchInterval,
     queryFn: async ({ pageParam }) => {
       const res = await fetchMyErrands({
@@ -602,6 +608,8 @@ export function useErrandQuery(
   return useQuery({
     queryKey: queryKeys.errand(errandId ?? 0),
     enabled: errandId != null && errandId > 0,
+    staleTime: 30_000,
+    refetchOnMount: "always",
     refetchInterval: options?.refetchInterval,
     queryFn: async () => {
       const res = await fetchErrand(errandId!);
@@ -636,7 +644,8 @@ export function useErrandTrackingQuery(errandId: number | null, enabled = true) 
   return useQuery({
     queryKey: queryKeys.errandTracking(errandId ?? 0),
     enabled: enabled && errandId != null && errandId > 0,
-    staleTime: 60_000,
+    staleTime: 15_000,
+    refetchOnMount: "always",
     queryFn: async () => {
       const res = await fetchErrandTracking(errandId!);
       if (!res.success || !res.data) {

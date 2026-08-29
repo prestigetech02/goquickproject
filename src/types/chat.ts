@@ -15,6 +15,8 @@ export type ChatThread = {
   missed_call_count: number;
   errand_id: number | null;
   is_archived: boolean;
+  is_read_only: boolean;
+  errand_status: string | null;
 };
 
 export type ChatAttachmentType = "image" | "document" | "video" | null;
@@ -52,6 +54,8 @@ export type ChatMessagesPayload = {
   peer: ChatPeer;
   /** True when older messages exist beyond the loaded window */
   has_more?: boolean;
+  is_read_only?: boolean;
+  errand_status?: string | null;
 };
 
 export type ChatThreadsPage = {
@@ -88,6 +92,8 @@ export function parseChatThread(raw: Record<string, unknown>): ChatThread {
     missed_call_count: Number(raw.missed_call_count) || 0,
     errand_id: raw.errand_id != null ? Number(raw.errand_id) : null,
     is_archived: raw.is_archived === true,
+    is_read_only: raw.is_read_only === true,
+    errand_status: raw.errand_status != null ? String(raw.errand_status) : null,
   };
 }
 

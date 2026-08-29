@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getStoredUser } from "./auth";
-import { applyErrandStatus, applyErrandStatusPayload } from "./errandCache";
+import { syncErrandAfterRealtime } from "./errandCache";
 import { getEcho } from "./echo";
 import { getActiveChatThreadId, incrementThreadUnread } from "./chatCache";
 import { queryKeys } from "./queryClient";
@@ -22,7 +22,7 @@ type ErrandStatusPayload = {
 
 /**
  * Subscribe to private-user.{id} for notifications and errand status.
- * Status patches the cache immediately so list/detail/dashboard update live.
+ * Patches status instantly, then invalidates so detail/proof/lists refetch.
  */
 export function useUserRealtime() {
   const qc = useQueryClient();
@@ -57,11 +57,16 @@ export function useUserRealtime() {
 
       channel.listen(".errand.status.updated", (payload: ErrandStatusPayload) => {
         if (cancelled) return;
-        applyErrandStatusPayload(qc, payload);
         const errandId = Number(payload?.errand_id) || 0;
-        void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
+        const status = String(payload?.status || "").trim();
         if (errandId > 0) {
-          void qc.invalidateQueries({ queryKey: queryKeys.errandTracking(errandId) });
+          syncErrandAfterRealtime(qc, errandId, {
+            status: status || undefined,
+            updatedAt: payload?.updated_at,
+          });
+        } else {
+          void qc.invalidateQueries({ queryKey: ["errands"] });
+          void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
         }
       });
 
@@ -83,26 +88,24 @@ export function useUserRealtime() {
             void qc.invalidateQueries({ queryKey: queryKeys.chats });
           }
         }
+
         const errandId = Number(nested.errand_id) || 0;
         const status = String(nested.status || "").trim();
-        if (errandId > 0 && status) {
-          applyErrandStatus(qc, errandId, status);
-        } else if (
+        const isErrandLifecycle =
           type.includes("errand") ||
           type.includes("offer") ||
           type.includes("proof") ||
-          type.includes("escrow")
-        ) {
+          type.includes("escrow");
+
+        if (errandId > 0 && isErrandLifecycle) {
+          syncErrandAfterRealtime(qc, errandId, {
+            status: status || undefined,
+          });
+        } else if (isErrandLifecycle) {
           void qc.invalidateQueries({ queryKey: ["errands"] });
-        }
-        if (
-          type.includes("errand") ||
-          type.includes("offer") ||
-          type.includes("proof") ||
-          type.includes("escrow")
-        ) {
           void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
         }
+
         if (
           type.includes("wallet") ||
           type.includes("payment") ||

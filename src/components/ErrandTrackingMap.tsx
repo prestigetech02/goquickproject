@@ -107,15 +107,15 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
     };
   }, [token]);
 
-  // Draw polyline + static markers once per tracking snapshot (not on every GPS ping).
+  // Draw polyline + static markers for the current tracking snapshot.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data) return;
 
     const apply = () => {
+      const existing = map.getSource(ROUTE_SOURCE) as mapboxgl.GeoJSONSource | undefined;
       if (routeCoords.length >= 2) {
         const geo = routeGeoJson(routeCoords);
-        const existing = map.getSource(ROUTE_SOURCE) as mapboxgl.GeoJSONSource | undefined;
         if (existing) {
           existing.setData(geo);
         } else {
@@ -132,6 +132,9 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
             },
           });
         }
+      } else if (existing) {
+        if (map.getLayer(ROUTE_LAYER)) map.removeLayer(ROUTE_LAYER);
+        map.removeSource(ROUTE_SOURCE);
       }
 
       if (isFiniteCoord(data.pickup.latitude, data.pickup.longitude)) {
@@ -144,6 +147,9 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
         } else {
           pickupMarkerRef.current.setLngLat(lngLat);
         }
+      } else if (pickupMarkerRef.current) {
+        pickupMarkerRef.current.remove();
+        pickupMarkerRef.current = null;
       }
 
       if (isFiniteCoord(data.dropoff.latitude, data.dropoff.longitude)) {
@@ -156,17 +162,21 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
         } else {
           dropoffMarkerRef.current.setLngLat(lngLat);
         }
+      } else if (dropoffMarkerRef.current) {
+        dropoffMarkerRef.current.remove();
+        dropoffMarkerRef.current = null;
       }
 
-      if (!fittedRef.current) {
-        fitMap(map, data, routeCoords, effectiveRunner);
-        fittedRef.current = true;
-      }
+      // Refit when tracking snapshot / route changes — not on every GPS ping.
+      fitMap(map, data, routeCoords, effectiveRunner);
+      fittedRef.current = true;
     };
 
     if (map.isStyleLoaded()) apply();
     else map.once("load", apply);
-  }, [data, routeCoords, effectiveRunner]);
+    // intentionally omit effectiveRunner so live GPS does not re-fit the camera
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fit uses runner snapshot at load time
+  }, [data, routeCoords]);
 
   useEffect(() => {
     const map = mapRef.current;

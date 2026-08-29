@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyErrandStatusPayload } from "./errandCache";
+import { syncErrandAfterRealtime } from "./errandCache";
 import { getEcho } from "./echo";
 import { queryKeys } from "./queryClient";
 import type { ErrandOffer } from "../types/errand";
@@ -69,9 +69,11 @@ export function useErrandRealtime(
 
       channel.listen(".errand.status.updated", (payload: StatusPayload) => {
         if (cancelled) return;
-        applyErrandStatusPayload(qc, payload);
-        void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
-        void qc.invalidateQueries({ queryKey: queryKeys.errandTracking(errandId) });
+        const status = String(payload?.status || "").trim();
+        syncErrandAfterRealtime(qc, errandId, {
+          status: status || undefined,
+          updatedAt: payload?.updated_at,
+        });
       });
 
       if (listenOffers) {
@@ -85,6 +87,8 @@ export function useErrandRealtime(
             }
             return [offer, ...list];
           });
+          void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
+          void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
         });
       }
 

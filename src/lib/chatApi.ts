@@ -177,6 +177,8 @@ export async function fetchChatMessages(
       has_more?: boolean;
       current_user_id?: number;
       peer?: Record<string, unknown>;
+      is_read_only?: boolean;
+      errand_status?: string | null;
     };
     message?: string;
     error?: { code?: string; message?: string };
@@ -190,6 +192,7 @@ export async function fetchChatMessages(
         current_user_id: 0,
         peer: parseChatPeer(null),
         has_more: false,
+        is_read_only: false,
       },
       error: {
         code: payload.error?.code ?? "UNKNOWN_ERROR",
@@ -207,6 +210,8 @@ export async function fetchChatMessages(
       current_user_id: Number(payload.data.current_user_id) || 0,
       peer: parseChatPeer(payload.data.peer),
       has_more: Boolean(payload.data.has_more),
+      is_read_only: payload.data.is_read_only === true,
+      errand_status: payload.data.errand_status ?? null,
     },
   };
 }

@@ -129,3 +129,26 @@ export function applyErrandStatusPayload(qc: QueryClient, payload: ErrandStatusP
   if (!errandId || !status) return;
   applyErrandStatus(qc, errandId, status, payload.updated_at);
 }
+
+/**
+ * Optimistic status patch (instant UI) + invalidate so detail/proof/tracking refetch.
+ * Keeps cache usable while ensuring Reverb-driven changes pull full server state.
+ */
+export function syncErrandAfterRealtime(
+  qc: QueryClient,
+  errandId: number,
+  options?: { status?: string; updatedAt?: string },
+) {
+  if (!errandId) return;
+
+  const status = options?.status?.trim();
+  if (status) {
+    applyErrandStatus(qc, errandId, status, options?.updatedAt);
+  }
+
+  void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
+  void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
+  void qc.invalidateQueries({ queryKey: queryKeys.errandTracking(errandId) });
+  void qc.invalidateQueries({ queryKey: ["errands"] });
+  void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
+}

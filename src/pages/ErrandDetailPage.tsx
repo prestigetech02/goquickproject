@@ -84,7 +84,8 @@ export function ErrandDetailPage() {
   });
 
   const { data: errand, error, isPending, refetch } = useErrandQuery(validId, {
-    refetchInterval: errandLive ? false : 8_000,
+    // Reverb drives updates; keep a slow backup poll in case a broadcast is missed.
+    refetchInterval: errandLive ? 30_000 : 8_000,
   });
   const showOffers =
     !!errand &&
@@ -92,7 +93,7 @@ export function ErrandDetailPage() {
     !errand.runner_id;
   const showTracking = !!errand && isTrackableErrandStatus(errand.status);
   const { data: offers = [] } = useErrandOffersQuery(validId, showOffers, {
-    refetchInterval: showOffers && !errandLive ? 12_000 : false,
+    refetchInterval: showOffers ? (errandLive ? 30_000 : 12_000) : false,
   });
   const cancelMutation = useCancelErrandMutation();
   const acceptMutation = useAcceptOfferMutation(validId ?? 0);
@@ -323,6 +324,7 @@ export function ErrandDetailPage() {
 
       {showTracking ? (
         <ErrandTrackingMap
+          key={errand.id}
           errandId={errand.id}
           runnerPos={runnerLivePos}
           live={errandLive}

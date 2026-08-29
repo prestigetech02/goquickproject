@@ -64,7 +64,7 @@ function MessageBubble({
   mine: boolean;
   peerName: string;
   peerPicture: string | null;
-  onReply: (m: ChatMessage) => void;
+  onReply?: (m: ChatMessage) => void;
 }) {
   const isMissed = m.message_type === "missed_call";
   if (isMissed) {
@@ -133,15 +133,17 @@ function MessageBubble({
             <p className="msg-text">{m.message}</p>
           ) : null}
 
-          <button
-            type="button"
-            className="msg-reply-btn"
-            aria-label="Reply"
-            title="Reply"
-            onClick={() => onReply(m)}
-          >
-            ↩
-          </button>
+          {onReply ? (
+            <button
+              type="button"
+              className="msg-reply-btn"
+              aria-label="Reply"
+              title="Reply"
+              onClick={() => onReply(m)}
+            >
+              ↩
+            </button>
+          ) : null}
         </div>
         <div className={`msg-meta${mine ? " mine" : ""}`}>
           <span className="msg-time">{formatTime(m.created_at)}</span>
@@ -183,6 +185,7 @@ export function ChatThreadPage() {
 
   const messages = data?.messages ?? [];
   const hasMoreOlder = Boolean(data?.has_more);
+  const isReadOnly = Boolean(data?.is_read_only ?? fromCache?.is_read_only);
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -236,6 +239,7 @@ export function ChatThreadPage() {
   }
 
   function notifyTyping() {
+    if (isReadOnly) return;
     if (!typingActiveRef.current) {
       typingActiveRef.current = true;
       sendTyping(true);
@@ -297,7 +301,7 @@ export function ChatThreadPage() {
 
   async function handleSend(e?: FormEvent) {
     e?.preventDefault();
-    if (validId == null || sendMutation.isPending) return;
+    if (isReadOnly || validId == null || sendMutation.isPending) return;
     const text = draft.trim();
     if (!text && !pendingFile) return;
 
@@ -451,11 +455,11 @@ export function ChatThreadPage() {
                   mine={item.message.sender_id === currentUserId}
                   peerName={peerName}
                   peerPicture={picture}
-                  onReply={setReplyTo}
+                  onReply={isReadOnly ? undefined : setReplyTo}
                 />
               ),
             )}
-            {peerTyping ? (
+            {peerTyping && !isReadOnly ? (
               <div className="msg-row theirs" aria-live="polite">
                 <span className="msg-avatar" aria-hidden="true">
                   {picture ? (
@@ -479,7 +483,7 @@ export function ChatThreadPage() {
           </div>
         ) : null}
 
-        {peerTyping && grouped.length === 0 && !isPending ? (
+        {peerTyping && !isReadOnly && grouped.length === 0 && !isPending ? (
           <div className="chat-messages">
             <div className="msg-row theirs" aria-live="polite">
               <span className="msg-avatar" aria-hidden="true">
@@ -500,7 +504,11 @@ export function ChatThreadPage() {
         ) : null}
       </div>
 
-      <footer className="chat-composer">
+      <footer className={`chat-composer${isReadOnly ? " chat-composer-locked" : ""}`}>
+        {isReadOnly ? (
+          <p className="chat-ended-notice">This errand has ended. Messaging is no longer available.</p>
+        ) : (
+          <>
         {replyTo ? (
           <div className="chat-reply-bar">
             <div className="chat-reply-bar-text">
@@ -587,6 +595,8 @@ export function ChatThreadPage() {
             )}
           </button>
         </form>
+          </>
+        )}
       </footer>
     </div>
   );

@@ -2289,6 +2289,19 @@ a.btn-secondary:hover {
   max-width: 100%;
 }
 
+.chat-composer-locked {
+  background: #f7f7f5;
+}
+
+.chat-ended-notice {
+  margin: 0;
+  text-align: center;
+  color: var(--color-muted, #6b7280);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 6px 4px;
+}
+
 /* Only when bottom nav is hidden (keyboard open) keep home-indicator inset */
 .app-shell.hide-bottom-nav .chat-composer {
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
@@ -3154,8 +3167,13 @@ a.card-link:hover {
   border-left-color: var(--color-danger);
 }
 
-.errand-row.selected,
-.errand-row:hover {
+.errand-row.selected {
+  background: rgba(26, 122, 10, 0.08);
+  border-color: rgba(26, 122, 10, 0.45);
+  box-shadow: inset 3px 0 0 #1a7a0a;
+}
+
+.errand-row:hover:not(.selected) {
   background: rgba(26, 122, 10, 0.04);
   border-color: rgba(26, 122, 10, 0.25);
 }
