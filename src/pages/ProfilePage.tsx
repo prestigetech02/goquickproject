@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
 import { useToast } from "../components/ToastProvider";
 import { clearSession } from "../lib/auth";
@@ -72,8 +72,8 @@ function MenuLink({
 export function ProfilePage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const sectionMatch = useMatch("/profile/:section");
-  const hasSection = Boolean(sectionMatch?.params.section);
+  const { pathname } = useLocation();
+  const hasSection = pathname.replace(/\/$/, "") !== "/profile";
 
   const { data: user, error, isPending, refetch } = useProfileQuery();
   const unreadTicketsQuery = useSupportTicketsUnreadCountQuery();
