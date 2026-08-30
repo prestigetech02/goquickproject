@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { AcceptOfferPaymentModal } from "../components/AcceptOfferPaymentModal";
 import { CancelErrandModal } from "../components/CancelErrandModal";
 import {
   ErrandTrackingMap,
   type LiveRunnerPosition,
 } from "../components/ErrandTrackingMap";
+import { RaiseDisputeModal } from "../components/RaiseDisputeModal";
 import { RejectProofModal } from "../components/RejectProofModal";
 import { ReviewRunnerModal } from "../components/ReviewRunnerModal";
 import { useToast } from "../components/ToastProvider";
@@ -18,20 +20,27 @@ import {
   useCancelErrandMutation,
   useErrandOffersQuery,
   useErrandQuery,
+  useRaiseErrandDisputeMutation,
   useRejectErrandCompletionMutation,
   useSubmitErrandReviewMutation,
+  useVerifyWalletFundingMutation,
 } from "../lib/queries";
 import { useErrandRealtime } from "../lib/useErrandRealtime";
 import {
   canActOnProof,
   canCancelErrand,
+  canRaiseDispute,
   canReviewRunner,
+  disputeStatusLabel,
+  disputeTypeLabel,
   errandStatusLabel,
   errandStatusTone,
   errandDisplayAmount,
   formatNaira,
   proofStatusLabel,
   runnerDisplayName,
+  type ErrandDisputeType,
+  type ErrandOffer,
 } from "../types/errand";
 import { isTrackableErrandStatus } from "../types/tracking";
 
@@ -55,15 +64,18 @@ export function ErrandDetailPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { errandId: rawId } = useParams();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const errandId = rawId ? Number(rawId) : null;
   const validId = errandId != null && !Number.isNaN(errandId) && errandId > 0 ? errandId : null;
 
   const [runnerLivePos, setRunnerLivePos] = useState<LiveRunnerPosition | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [payingOffer, setPayingOffer] = useState<ErrandOffer | null>(null);
+  const payReturnRef = useRef(false);
 
   const onRunnerLocation = useCallback(
     (payload: { latitude?: number; longitude?: number; updated_at?: string }) => {
@@ -96,7 +108,9 @@ export function ErrandDetailPage() {
     refetchInterval: showOffers ? (errandLive ? 30_000 : 12_000) : false,
   });
   const cancelMutation = useCancelErrandMutation();
+  const disputeMutation = useRaiseErrandDisputeMutation(validId ?? 0);
   const acceptMutation = useAcceptOfferMutation(validId ?? 0);
+  const verifyFunding = useVerifyWalletFundingMutation();
   const acceptProof = useAcceptErrandCompletionMutation(validId ?? 0);
   const rejectProof = useRejectErrandCompletionMutation(validId ?? 0);
   const submitReview = useSubmitErrandReviewMutation(validId ?? 0);
@@ -105,7 +119,57 @@ export function ErrandDetailPage() {
     setRunnerLivePos(null);
   }, [validId]);
 
-  const backQuery = searchParams.toString() ? `?${searchParams}` : "";
+  useEffect(() => {
+    const reference =
+      searchParams.get("reference")?.trim() || searchParams.get("trxref")?.trim() || "";
+    const payOfferId = Number(searchParams.get("pay_offer"));
+    if (
+      !validId ||
+      !reference ||
+      !Number.isFinite(payOfferId) ||
+      payOfferId <= 0 ||
+      payReturnRef.current
+    ) {
+      return;
+    }
+    payReturnRef.current = true;
+
+    void (async () => {
+      toast.info("Confirming payment…");
+      try {
+        const data = await verifyFunding.mutateAsync(reference);
+        if (String(data.transaction.status).toLowerCase() !== "completed") {
+          toast.info("Payment is still pending. Use Accept & pay again in a moment.");
+          return;
+        }
+        await acceptMutation.mutateAsync(payOfferId);
+        toast.success("Offer accepted. Payment is held in escrow.");
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Could not complete payment."));
+      } finally {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("reference");
+            next.delete("trxref");
+            next.delete("pay_offer");
+            return next;
+          },
+          { replace: true },
+        );
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for Paystack return
+  }, [validId]);
+
+  const backQuery = useMemo(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("reference");
+    next.delete("trxref");
+    next.delete("pay_offer");
+    const s = next.toString();
+    return s ? `?${s}` : "";
+  }, [searchParams]);
   const tone = errand ? errandStatusTone(errand.status) : "muted";
   const activeStep = errand ? timelineIndex(errand.status) : 0;
   const cancelled = errand
@@ -125,15 +189,19 @@ export function ErrandDetailPage() {
     }
   }
 
-  async function handleAccept(offerId: number) {
+  async function confirmDispute(payload: { type: ErrandDisputeType; reason: string }) {
+    if (!validId) return;
     try {
-      await acceptMutation.mutateAsync(offerId);
-      toast.success("Offer accepted.");
+      await disputeMutation.mutateAsync(payload);
+      setDisputeOpen(false);
+      toast.success("Dispute submitted. Support will review it.");
     } catch (err) {
-      toast.error(
-        getApiErrorMessage(err, "Could not accept offer. Check your wallet balance."),
-      );
+      toast.error(getApiErrorMessage(err, "Could not raise dispute."));
     }
+  }
+
+  async function handleAccept(offer: ErrandOffer) {
+    setPayingOffer(offer);
   }
 
   async function handleChat() {
@@ -250,6 +318,25 @@ export function ErrandDetailPage() {
         </div>
         <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
       </header>
+
+      {errand.dispute ? (
+        <section className="card stack dispute-banner">
+          <h2 className="profile-card-title">Dispute · {disputeStatusLabel(errand.dispute.status)}</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            {disputeTypeLabel(errand.dispute.type)}
+          </p>
+          <p style={{ margin: 0 }}>{errand.dispute.reason}</p>
+          {errand.dispute.resolution ? (
+            <p className="dispute-resolution">
+              <strong>Support:</strong> {errand.dispute.resolution}
+            </p>
+          ) : (
+            <p className="muted" style={{ margin: 0 }}>
+              Support is reviewing this. Chat with the runner is still available.
+            </p>
+          )}
+        </section>
+      ) : null}
 
       {errand.description ? (
         <section className="card stack">
@@ -434,10 +521,10 @@ export function ErrandDetailPage() {
                 <button
                   type="button"
                   className="btn-primary"
-                  disabled={acceptMutation.isPending}
-                  onClick={() => void handleAccept(offer.id)}
+                  disabled={acceptMutation.isPending || payingOffer != null}
+                  onClick={() => void handleAccept(offer)}
                 >
-                  {acceptMutation.isPending ? "Paying…" : "Accept & pay"}
+                  {acceptMutation.isPending && payingOffer?.id === offer.id ? "Paying…" : "Accept & pay"}
                 </button>
               </div>
             ))
@@ -525,16 +612,28 @@ export function ErrandDetailPage() {
         </section>
       ) : null}
 
-      {canCancelErrand(errand.status) ? (
+      {canCancelErrand(errand.status) || canRaiseDispute(errand) ? (
         <div className="errand-detail-actions">
-          <button
-            type="button"
-            className="btn-ghost profile-danger-btn"
-            disabled={cancelMutation.isPending}
-            onClick={() => setCancelOpen(true)}
-          >
-            Cancel errand
-          </button>
+          {canRaiseDispute(errand) ? (
+            <button
+              type="button"
+              className="btn-ghost profile-danger-btn"
+              disabled={disputeMutation.isPending}
+              onClick={() => setDisputeOpen(true)}
+            >
+              Raise a dispute
+            </button>
+          ) : null}
+          {canCancelErrand(errand.status) ? (
+            <button
+              type="button"
+              className="btn-ghost profile-danger-btn"
+              disabled={cancelMutation.isPending}
+              onClick={() => setCancelOpen(true)}
+            >
+              Cancel errand
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -545,6 +644,24 @@ export function ErrandDetailPage() {
           busy={cancelMutation.isPending}
           onClose={() => setCancelOpen(false)}
           onConfirm={() => void confirmCancel()}
+        />
+      ) : null}
+
+      {payingOffer && validId ? (
+        <AcceptOfferPaymentModal
+          errandId={validId}
+          offer={payingOffer}
+          onClose={() => setPayingOffer(null)}
+          onPaid={() => setPayingOffer(null)}
+        />
+      ) : null}
+
+      {disputeOpen ? (
+        <RaiseDisputeModal
+          errandTitle={errand.title || "this errand"}
+          busy={disputeMutation.isPending}
+          onClose={() => !disputeMutation.isPending && setDisputeOpen(false)}
+          onConfirm={(payload) => void confirmDispute(payload)}
         />
       ) : null}
 

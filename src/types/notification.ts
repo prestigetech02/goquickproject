@@ -30,8 +30,23 @@ export function parseNotification(raw: Record<string, unknown>): AppNotification
     related_id:
       raw.related_id != null
         ? String(raw.related_id)
-        : data?.errand_id != null
-          ? String(data.errand_id)
-          : null,
+        : data?.ticket_id != null
+          ? String(data.ticket_id)
+          : data?.errand_id != null
+            ? String(data.errand_id)
+            : null,
   };
+}
+
+export function relatedSupportTicketId(n: AppNotification): number | null {
+  const raw = n.data?.ticket_id;
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+export function relatedErrandId(n: AppNotification): number | null {
+  if (relatedSupportTicketId(n) != null) return null;
+  const raw = n.data?.errand_id ?? n.related_id;
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
 }

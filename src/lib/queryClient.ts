@@ -33,4 +33,8 @@ export const queryKeys = {
   errandTypeSchemas: ["errands", "type-schemas"] as const,
   wallet: ["wallet"] as const,
   walletTransactions: ["wallet", "transactions"] as const,
+  supportTickets: ["support-tickets", "list"] as const,
+  supportTicketsUnread: ["support-tickets", "unread-count"] as const,
+  supportTicket: (id: number) => ["support-tickets", "detail", id] as const,
+  publicConfig: ["public-config"] as const,
 };

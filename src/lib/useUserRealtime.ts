@@ -95,7 +95,8 @@ export function useUserRealtime() {
           type.includes("errand") ||
           type.includes("offer") ||
           type.includes("proof") ||
-          type.includes("escrow");
+          type.includes("escrow") ||
+          type.includes("dispute");
 
         if (errandId > 0 && isErrandLifecycle) {
           syncErrandAfterRealtime(qc, errandId, {
@@ -104,6 +105,15 @@ export function useUserRealtime() {
         } else if (isErrandLifecycle) {
           void qc.invalidateQueries({ queryKey: ["errands"] });
           void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
+        }
+
+        if (type.includes("support_ticket")) {
+          void qc.invalidateQueries({ queryKey: queryKeys.supportTickets });
+          void qc.invalidateQueries({ queryKey: queryKeys.supportTicketsUnread });
+          const ticketId = Number(nested.ticket_id) || 0;
+          if (ticketId > 0) {
+            void qc.invalidateQueries({ queryKey: queryKeys.supportTicket(ticketId) });
+          }
         }
 
         if (

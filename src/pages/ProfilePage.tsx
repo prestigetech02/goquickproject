@@ -6,8 +6,9 @@ import { clearSession } from "../lib/auth";
 import { logout } from "../lib/authApi";
 import { config } from "../lib/config";
 import { getApiErrorMessage } from "../lib/http";
-import { useProfileQuery, useUploadProfilePictureMutation } from "../lib/queries";
+import { useProfileQuery, useSupportTicketsUnreadCountQuery, useUploadProfilePictureMutation } from "../lib/queries";
 import { isProfileComplete } from "../types/api";
+import { unreadCountLabel } from "../types/supportTicket";
 
 function initials(first?: string | null, last?: string | null) {
   const a = first?.trim()?.[0] ?? "";
@@ -21,37 +22,49 @@ function MenuLink({
   title,
   subtitle,
   danger,
+  badge,
+  ariaLabel,
   onClick,
 }: {
   to?: string;
   title: string;
   subtitle?: string;
   danger?: boolean;
+  badge?: string | null;
+  ariaLabel?: string;
   onClick?: () => void;
 }) {
   const className = `profile-menu-item${danger ? " danger" : ""}`;
-  if (to) {
-    return (
-      <NavLink to={to} className={({ isActive }) => `${className}${isActive ? " active" : ""}`}>
-        <span className="profile-menu-text">
-          <span className="profile-menu-title">{title}</span>
-          {subtitle ? <span className="profile-menu-sub">{subtitle}</span> : null}
-        </span>
-        <span className="profile-menu-chevron" aria-hidden>
-          ›
-        </span>
-      </NavLink>
-    );
-  }
-  return (
-    <button type="button" className={className} onClick={onClick}>
+  const inner = (
+    <>
       <span className="profile-menu-text">
         <span className="profile-menu-title">{title}</span>
         {subtitle ? <span className="profile-menu-sub">{subtitle}</span> : null}
       </span>
+      {badge ? (
+        <span className="profile-menu-count" aria-hidden>
+          {badge}
+        </span>
+      ) : null}
       <span className="profile-menu-chevron" aria-hidden>
         ›
       </span>
+    </>
+  );
+  if (to) {
+    return (
+      <NavLink
+        to={to}
+        className={({ isActive }) => `${className}${isActive ? " active" : ""}`}
+        aria-label={ariaLabel}
+      >
+        {inner}
+      </NavLink>
+    );
+  }
+  return (
+    <button type="button" className={className} onClick={onClick} aria-label={ariaLabel}>
+      {inner}
     </button>
   );
 }
@@ -63,6 +76,9 @@ export function ProfilePage() {
   const hasSection = Boolean(sectionMatch?.params.section);
 
   const { data: user, error, isPending, refetch } = useProfileQuery();
+  const unreadTicketsQuery = useSupportTicketsUnreadCountQuery();
+  const ticketUnread = unreadTicketsQuery.data ?? 0;
+  const ticketUnreadLabel = unreadCountLabel(ticketUnread);
   const uploadPic = useUploadProfilePictureMutation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -234,7 +250,17 @@ export function ProfilePage() {
               title="Notification Settings"
               subtitle="Choose what you hear about"
             />
-            <MenuLink to="/profile/help" title="Help & Support" subtitle="FAQs and contact" />
+            <MenuLink
+              to="/profile/help"
+              title="Help & Support"
+              subtitle="Tickets, FAQs, and contact"
+              badge={ticketUnreadLabel}
+              ariaLabel={
+                ticketUnread > 0
+                  ? `Help & Support, ${ticketUnread} unread ${ticketUnread === 1 ? "reply" : "replies"} from support`
+                  : undefined
+              }
+            />
             <a
               className="profile-menu-item"
               href={config.playStoreUrl}

@@ -3,6 +3,8 @@ import type { ApiResponse } from "../types/api";
 import { parseChatThread, type ChatThread } from "../types/chat";
 import type {
   Errand,
+  ErrandDispute,
+  ErrandDisputeType,
   ErrandOffer,
   ErrandProof,
   ErrandStatusFilter,
@@ -360,6 +362,20 @@ export async function submitErrandReview(
     {
       rating: payload.rating,
       comment: payload.comment?.trim() || null,
+    },
+  );
+  return data;
+}
+
+export async function raiseErrandDispute(
+  errandId: number,
+  payload: { type: ErrandDisputeType; reason: string },
+) {
+  const { data } = await http.post<ApiResponse<{ dispute: ErrandDispute }>>(
+    `/errands/${errandId}/disputes`,
+    {
+      type: payload.type,
+      reason: payload.reason,
     },
   );
   return data;

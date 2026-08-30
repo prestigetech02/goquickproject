@@ -23,6 +23,9 @@ import { ProfilePage, ProfileSelectEmpty } from "./pages/ProfilePage";
 import { AboutPage } from "./pages/profile/AboutPage";
 import { AccountSecurityPage } from "./pages/profile/AccountSecurityPage";
 import { HelpSupportPage } from "./pages/profile/HelpSupportPage";
+import { SupportTicketsPage } from "./pages/profile/SupportTicketsPage";
+import { NewSupportTicketPage } from "./pages/profile/NewSupportTicketPage";
+import { SupportTicketThreadPage } from "./pages/profile/SupportTicketThreadPage";
 import { NotificationSettingsPage } from "./pages/profile/NotificationSettingsPage";
 import { PaymentMethodsPage } from "./pages/profile/PaymentMethodsPage";
 import { PersonalInfoPage } from "./pages/profile/PersonalInfoPage";
@@ -74,6 +77,9 @@ export default function App() {
             <Route path="notifications" element={<NotificationSettingsPage />} />
             <Route path="payments" element={<PaymentMethodsPage />} />
             <Route path="help" element={<HelpSupportPage />} />
+            <Route path="help/tickets" element={<SupportTicketsPage />} />
+            <Route path="help/tickets/new" element={<NewSupportTicketPage />} />
+            <Route path="help/tickets/:ticketId" element={<SupportTicketThreadPage />} />
             <Route path="about" element={<AboutPage />} />
           </Route>
           <Route path="/notifications" element={<NotificationsPage />} />

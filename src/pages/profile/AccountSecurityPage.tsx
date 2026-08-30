@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProfileSubHeader } from "../../components/ProfileSubHeader";
+import { PasswordInput } from "../../components/PasswordInput";
 import { useToast } from "../../components/ToastProvider";
 import { clearSession } from "../../lib/auth";
 import { getApiErrorMessage } from "../../lib/http";
@@ -80,20 +81,18 @@ export function AccountSecurityPage() {
       <form onSubmit={handleChangePassword} className="card stack profile-form">
         <h2 className="profile-card-title">Change password</h2>
 
-        <label htmlFor="sec-current">Current password</label>
-        <input
+        <PasswordInput
           id="sec-current"
-          type="password"
+          label="Current password"
           value={currentPassword}
           onChange={(e) => setCurrentPassword(e.target.value)}
           autoComplete="current-password"
           required
         />
 
-        <label htmlFor="sec-new">New password</label>
-        <input
+        <PasswordInput
           id="sec-new"
-          type="password"
+          label="New password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           autoComplete="new-password"
@@ -101,10 +100,9 @@ export function AccountSecurityPage() {
           required
         />
 
-        <label htmlFor="sec-confirm">Confirm new password</label>
-        <input
+        <PasswordInput
           id="sec-confirm"
-          type="password"
+          label="Confirm new password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           autoComplete="new-password"
@@ -159,10 +157,9 @@ export function AccountSecurityPage() {
                 />
               </>
             ) : null}
-            <label htmlFor="danger-pw">Password</label>
-            <input
+            <PasswordInput
               id="danger-pw"
-              type="password"
+              label="Password"
               value={dangerPassword}
               onChange={(e) => setDangerPassword(e.target.value)}
               autoComplete="current-password"

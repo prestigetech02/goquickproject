@@ -7,6 +7,7 @@ import {
   useNotificationsInfiniteQuery,
 } from "../lib/queries";
 import type { AppNotification } from "../types/notification";
+import { relatedErrandId, relatedSupportTicketId } from "../types/notification";
 
 function NotificationSkeletonList({ count = 6 }: { count?: number }) {
   return (
@@ -27,9 +28,16 @@ function NotificationSkeletonList({ count = 6 }: { count?: number }) {
   );
 }
 
-function hasRelatedErrand(n: AppNotification): boolean {
-  const errandId = n.data?.errand_id ?? n.related_id;
-  return errandId != null && String(errandId).length > 0;
+function relatedAction(n: AppNotification): { path: string; label: string } | null {
+  const ticketId = relatedSupportTicketId(n);
+  if (ticketId) {
+    return { path: `/profile/help/tickets/${ticketId}`, label: "View ticket" };
+  }
+  const errandId = relatedErrandId(n);
+  if (errandId) {
+    return { path: `/errands/${errandId}`, label: "View errand" };
+  }
+  return null;
 }
 
 export function NotificationsPage() {
@@ -165,13 +173,15 @@ export function NotificationsPage() {
           notification={selectedLive}
           onClose={() => setSelected(null)}
           onViewRelated={
-            hasRelatedErrand(selectedLive)
+            relatedAction(selectedLive)
               ? () => {
+                  const action = relatedAction(selectedLive);
                   setSelected(null);
-                  navigate("/errands");
+                  if (action) navigate(action.path);
                 }
               : undefined
           }
+          relatedLabel={relatedAction(selectedLive)?.label ?? "View errand"}
         />
       ) : null}
     </div>

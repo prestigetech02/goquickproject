@@ -6,6 +6,8 @@ export const config = {
     "https://play.google.com/store/apps/details?id=com.goquick.app",
   appStoreUrl: import.meta.env.VITE_APP_STORE_URL || "https://apps.apple.com/app/goquick",
   landingUrl: import.meta.env.VITE_LANDING_URL || "https://goquickapp.com.ng",
+  supportEmail: import.meta.env.VITE_SUPPORT_EMAIL || "support@goquickapp.com.ng",
+  whatsAppUrl: import.meta.env.VITE_SUPPORT_WHATSAPP_URL || "https://wa.me/2349069063200",
   /** Set true to restore Invite & earn, referral codes, and related UI. */
   referralEnabled: false,
   /** Public Mapbox token for Mapbox GL JS (tiles only — never use the secret token here). */

@@ -6,6 +6,7 @@ import {
   useNotificationsPreviewQuery,
 } from "../lib/queries";
 import type { AppNotification } from "../types/notification";
+import { relatedErrandId, relatedSupportTicketId } from "../types/notification";
 
 function IconBell() {
   return (
@@ -43,15 +44,18 @@ function formatWhen(iso: string): string {
 
 function iconForType(type: string): string {
   if (type.includes("chat")) return "💬";
-  if (type.includes("offer") || type.includes("errand") || type.includes("proof")) return "📦";
+  if (type.includes("support_ticket")) return "🎫";
+  if (type.includes("offer") || type.includes("errand") || type.includes("proof") || type.includes("dispute")) return "📦";
   if (type.includes("payment") || type.includes("escrow") || type.includes("payout")) return "₦";
   return "🔔";
 }
 
-function relatedErrandId(n: AppNotification): number | null {
-  const raw = n.data?.errand_id ?? n.related_id;
-  const id = Number(raw);
-  return Number.isFinite(id) && id > 0 ? id : null;
+function relatedPath(n: AppNotification): { path: string; label: string } | null {
+  const ticketId = relatedSupportTicketId(n);
+  if (ticketId) return { path: `/profile/help/tickets/${ticketId}`, label: "View ticket" };
+  const errandId = relatedErrandId(n);
+  if (errandId) return { path: `/errands/${errandId}`, label: "View errand" };
+  return null;
 }
 
 type Props = {
@@ -168,14 +172,15 @@ export function NotificationsPopover({ unreadCount }: Props) {
           notification={selectedLive}
           onClose={() => setSelected(null)}
           onViewRelated={
-            relatedErrandId(selectedLive)
+            relatedPath(selectedLive)
               ? () => {
-                  const errandId = relatedErrandId(selectedLive);
+                  const action = relatedPath(selectedLive);
                   setSelected(null);
-                  if (errandId) navigate(`/errands/${errandId}`);
+                  if (action) navigate(action.path);
                 }
               : undefined
           }
+          relatedLabel={relatedPath(selectedLive)?.label ?? "View errand"}
         />
       ) : null}
     </div>

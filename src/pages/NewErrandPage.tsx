@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrandCreatedModal } from "../components/ErrandCreatedModal";
 import { LocationPickerModal } from "../components/LocationPickerModal";
+import {
+  PaymentMethodOptions,
+  type ErrandPayMethod,
+} from "../components/PaymentMethodOptions";
 import { useToast } from "../components/ToastProvider";
 import { getStoredUser } from "../lib/auth";
 import {
@@ -11,7 +15,18 @@ import {
   type ErrandTypeSchema,
 } from "../lib/errandApi";
 import { getApiErrorMessage } from "../lib/http";
-import { useCreateErrandMutation, useErrandTypeSchemasQuery } from "../lib/queries";
+import {
+  completePaystackWalletFunding,
+  shortfallToFund,
+} from "../lib/paystackCheckout";
+import {
+  useCreateErrandMutation,
+  useErrandTypeSchemasQuery,
+  useFundWalletMutation,
+  useProfileQuery,
+  useVerifyWalletFundingMutation,
+  useWalletQuery,
+} from "../lib/queries";
 import type { LocationPoint } from "../lib/placesApi";
 import { isProfileComplete } from "../types/api";
 import { formatNaira } from "../types/errand";
@@ -157,11 +172,15 @@ function buildTitle(slug: string, description: string, typeName: string) {
 export function NewErrandPage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialType = searchParams.get("type")?.trim() || "custom";
 
   const schemasQ = useErrandTypeSchemasQuery();
   const create = useCreateErrandMutation();
+  const walletQ = useWalletQuery();
+  const { data: profile } = useProfileQuery();
+  const fundWallet = useFundWalletMutation();
+  const verifyFunding = useVerifyWalletFundingMutation();
 
   const types = useMemo(() => {
     const schemas = schemasQ.data ?? [];
@@ -185,6 +204,10 @@ export function NewErrandPage() {
   const [offerAmount, setOfferAmount] = useState("");
   const [created, setCreated] = useState<CreateErrandResult | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [payMethod, setPayMethod] = useState<ErrandPayMethod>("wallet");
+  const [paying, setPaying] = useState(false);
+  const payMethodInited = useRef(false);
+  const fundReturnRef = useRef(false);
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -195,6 +218,39 @@ export function NewErrandPage() {
       navigate("/complete-profile", { replace: true, state: { reason: "post_errand" } });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const reference =
+      searchParams.get("reference")?.trim() || searchParams.get("trxref")?.trim() || "";
+    if (!reference || fundReturnRef.current) return;
+    fundReturnRef.current = true;
+    void (async () => {
+      toast.info("Confirming payment…");
+      try {
+        const data = await verifyFunding.mutateAsync(reference);
+        if (String(data.transaction.status).toLowerCase() === "completed") {
+          toast.success("Wallet funded. Create the errand to continue.");
+          payMethodInited.current = true;
+          setPayMethod("wallet");
+        } else {
+          toast.info("Payment is still pending. It will update shortly.");
+        }
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, "Could not confirm payment."));
+      } finally {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("reference");
+            next.delete("trxref");
+            return next;
+          },
+          { replace: true },
+        );
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Paystack return URL
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -380,6 +436,42 @@ export function NewErrandPage() {
       return;
     }
 
+    const required = offer ?? floor;
+    const walletBalance = walletQ.data?.balance ?? 0;
+
+    if (payMethod === "wallet") {
+      if (walletBalance + 0.0001 < required) {
+        toast.error("Insufficient wallet balance. Pay with card / transfer, or fund your wallet first.");
+        setPayMethod("card");
+        return;
+      }
+    } else {
+      const email = profile?.email?.trim();
+      if (!email) {
+        toast.error("Add an email to your profile before paying with card or transfer.");
+        return;
+      }
+      const toFund = shortfallToFund(required, walletBalance);
+      if (toFund > 0) {
+        setPaying(true);
+        try {
+          toast.info("Opening Paystack…");
+          await completePaystackWalletFunding({
+            amount: toFund,
+            email,
+            callbackUrl: `${window.location.origin}/errands/new`,
+            fund: (payload) => fundWallet.mutateAsync(payload),
+            verify: (reference) => verifyFunding.mutateAsync(reference),
+          });
+        } catch (err) {
+          setPaying(false);
+          toast.error(getApiErrorMessage(err, "Payment failed. Your errand was not created."));
+          return;
+        }
+        setPaying(false);
+      }
+    }
+
     const metadata: Record<string, unknown> = {};
     if (instructions.trim()) metadata.instructions = instructions.trim();
     if (category === "queue") metadata.expected_wait_minutes = Number(waitMinutes);
@@ -409,7 +501,8 @@ export function NewErrandPage() {
     } catch (err) {
       const code = (err as Error & { code?: string }).code;
       if (code === "INSUFFICIENT_BALANCE") {
-        toast.error("Insufficient wallet balance. Fund your wallet, then try again.");
+        toast.error("Insufficient wallet balance. Pay with card / transfer to fund the amount, then try again.");
+        setPayMethod("card");
       } else if (code === "ZONE_NOT_SERVICEABLE") {
         toast.error(getApiErrorMessage(err, "This location is outside our service zones."));
       } else if (code === "OFFER_BELOW_MINIMUM") {
@@ -432,8 +525,24 @@ export function NewErrandPage() {
   const offerInvalid = offerAmount.replace(/,/g, "").trim().length > 0 && offerNum == null;
   const offerBelowFloor =
     offerFloor != null && offerNum != null && offerNum + 0.0001 < offerFloor;
+  const requiredAmount =
+    offerBelowFloor || offerInvalid ? null : (offerNum ?? offerFloor);
+  const walletBalance = walletQ.data?.balance ?? null;
   const canSubmit =
-    !create.isPending && !zoneError && Boolean(estimate?.suggested_price) && !offerBelowFloor && !offerInvalid;
+    !create.isPending &&
+    !paying &&
+    !zoneError &&
+    Boolean(estimate?.suggested_price) &&
+    !offerBelowFloor &&
+    !offerInvalid;
+
+  useEffect(() => {
+    if (payMethodInited.current || walletQ.isPending || requiredAmount == null || walletBalance == null) {
+      return;
+    }
+    payMethodInited.current = true;
+    setPayMethod(walletBalance + 0.0001 >= requiredAmount ? "wallet" : "card");
+  }, [walletQ.isPending, requiredAmount, walletBalance]);
 
   return (
     <div className="page new-errand-page">
@@ -725,8 +834,30 @@ export function NewErrandPage() {
           )}
         </section>
 
+        {requiredAmount != null ? (
+          <section className="card stack">
+            <PaymentMethodOptions
+              amount={requiredAmount}
+              walletBalance={walletBalance}
+              walletLoading={walletQ.isPending}
+              method={payMethod}
+              onChange={setPayMethod}
+              disabled={create.isPending || paying}
+              hint="Card / transfer opens Paystack for this amount. That credit is used for escrow when you accept a runner."
+            />
+          </section>
+        ) : null}
+
         <button type="submit" className="btn-primary" disabled={!canSubmit}>
-          {create.isPending ? "Creating…" : "Create errand"}
+          {paying
+            ? "Opening Paystack…"
+            : create.isPending
+              ? "Creating…"
+              : payMethod === "card" &&
+                  requiredAmount != null &&
+                  shortfallToFund(requiredAmount, walletBalance ?? 0) > 0
+                ? `Pay ${formatNaira(requiredAmount)} & create`
+                : "Create errand"}
         </button>
       </form>
 

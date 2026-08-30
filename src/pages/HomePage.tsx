@@ -22,6 +22,7 @@ import shoppingIcon from "../assets/errand-types/shopping.png";
 import pickupIcon from "../assets/errand-types/pickup.png";
 import queueIcon from "../assets/errand-types/queue.png";
 import customIcon from "../assets/errand-types/custom.png";
+import emptyErrandIllustration from "../assets/empty-state-errand.png";
 
 const HIDE_BALANCE_KEY = "requester_hide_balance";
 
@@ -283,9 +284,19 @@ export function HomePage() {
         ) : activeQ.isError ? (
           <div className="dash-empty muted">Couldn’t load active errands.</div>
         ) : activeErrands.length === 0 ? (
-          <div className="dash-empty">
+          <div className="dash-empty dash-empty-illustrated">
+            <img
+              src={emptyErrandIllustration}
+              alt=""
+              className="dash-empty-art"
+              width={160}
+              height={160}
+            />
             <strong>No active errands</strong>
-            <p className="muted">When you have an errand in progress, it will show here.</p>
+            <p className="muted">Post an errand and it will show up here while it is in progress.</p>
+            <button type="button" className="btn-primary" onClick={() => handleNewErrand()}>
+              Post an errand
+            </button>
           </div>
         ) : (
           <div className="dash-errand-list">

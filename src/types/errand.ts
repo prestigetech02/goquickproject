@@ -48,6 +48,18 @@ export type ErrandAttachment = {
   file_size?: number | null;
 };
 
+export type ErrandDisputeType = "payment" | "service" | "other";
+
+export type ErrandDispute = {
+  id: number;
+  type: ErrandDisputeType | string;
+  reason: string;
+  status: string;
+  raised_by?: number | null;
+  resolution?: string | null;
+  resolved_at?: string | null;
+};
+
 export type Errand = {
   id: number;
   title: string;
@@ -70,6 +82,7 @@ export type Errand = {
   payment?: ErrandPayment | null;
   proof?: ErrandProof | null;
   attachments?: ErrandAttachment[] | null;
+  dispute?: ErrandDispute | null;
   buyer_has_reviewed?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
@@ -192,6 +205,42 @@ export function canActOnProof(errand: Errand): boolean {
 /** Buyer can rate runner after completion if they have not reviewed yet. */
 export function canReviewRunner(errand: Errand): boolean {
   return errand.status.toLowerCase() === "completed" && !errand.buyer_has_reviewed;
+}
+
+export const DISPUTE_TYPES: { value: ErrandDisputeType; label: string; description: string }[] = [
+  { value: "payment", label: "Payment issue", description: "Problems with payment or escrow" },
+  { value: "service", label: "Service issue", description: "Problems with how the errand was done" },
+  { value: "other", label: "Other", description: "Something else that needs support" },
+];
+
+export function disputeTypeLabel(type: string): string {
+  return DISPUTE_TYPES.find((item) => item.value === type)?.label ?? type.replace(/_/g, " ");
+}
+
+export function disputeStatusLabel(status: string): string {
+  switch (status.toLowerCase()) {
+    case "open":
+      return "Open";
+    case "under_review":
+      return "Under review";
+    case "resolved":
+      return "Resolved";
+    case "closed":
+      return "Closed";
+    default:
+      return status.replace(/_/g, " ");
+  }
+}
+
+/** Requester can dispute once a runner is on the job, until it is cancelled or already in dispute. */
+export function canRaiseDispute(errand: Errand): boolean {
+  const status = errand.status.toLowerCase();
+  if (status.startsWith("cancelled") || status === "failed" || status === "disputed") return false;
+  if (status === "draft" || status === "searching" || status === "pending") return false;
+  if (!errand.runner_id) return false;
+  const disputeStatus = errand.dispute?.status?.toLowerCase();
+  if (disputeStatus === "open" || disputeStatus === "under_review") return false;
+  return true;
 }
 
 export function formatNaira(amount: number | null | undefined): string {

@@ -2673,6 +2673,15 @@ a.btn-secondary:hover {
   text-decoration: none;
 }
 
+.profile-subhead-with-action {
+  align-items: flex-end;
+}
+
+.profile-subhead-action {
+  flex-shrink: 0;
+  padding-bottom: 2px;
+}
+
 .profile-subhead .profile-back:hover {
   color: var(--color-primary);
   text-decoration: none;
@@ -2917,6 +2926,20 @@ a.btn-secondary:hover {
   line-height: 1;
 }
 
+.profile-menu-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e53935;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 .profile-form label {
   margin-bottom: -8px;
 }
@@ -2924,6 +2947,90 @@ a.btn-secondary:hover {
 .field-hint {
   margin: -4px 0 0;
   font-size: 0.8rem;
+}
+
+.ticket-list-meta {
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.ticket-status-tabs {
+  margin-bottom: 16px;
+}
+
+.ticket-empty {
+  text-align: center;
+  padding: 36px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ticket-empty-art {
+  width: min(280px, 100%);
+  height: auto;
+  margin: 0 0 8px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ticket-empty h2 {
+  margin: 4px 0 8px;
+  font-size: 1.2rem;
+}
+
+.ticket-empty p {
+  margin: 0 0 20px;
+  max-width: 320px;
+}
+
+.ticket-thread-meta {
+  margin: 0 0 12px;
+}
+
+.ticket-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ticket-msg {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f7f7f5;
+}
+
+.ticket-msg.staff {
+  background: rgba(26, 122, 10, 0.08);
+}
+
+.ticket-msg-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.ticket-msg-body {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.ticket-msg-image {
+  display: block;
+  max-width: 100%;
+  margin-top: 8px;
+  border-radius: 10px;
+}
+
+.ticket-locked-notice {
+  padding: 14px 12px;
+  background: #f7f7f5;
+  border-radius: 12px;
 }
 
 .profile-danger-card {
@@ -3548,7 +3655,59 @@ a.card-link:hover {
 
 .errand-detail-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   justify-content: flex-start;
+}
+
+.dispute-banner {
+  border-color: rgba(239, 108, 0, 0.35);
+  background: rgba(239, 108, 0, 0.06);
+}
+
+.dispute-resolution {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(26, 122, 10, 0.08);
+}
+
+.dispute-type-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dispute-type-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.dispute-type-option.selected {
+  border-color: var(--color-primary);
+  background: rgba(26, 122, 10, 0.06);
+}
+
+.dispute-type-option input {
+  margin-top: 3px;
+}
+
+.dispute-type-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.raise-dispute-modal {
+  max-width: 480px;
 }
 
 .cancel-errand-modal .notification-modal-body {
@@ -3903,13 +4062,37 @@ a.card-link:hover {
   text-align: center;
 }
 
+.dash-empty-illustrated {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 20px 22px;
+}
+
+.dash-empty-art {
+  width: min(148px, 55%);
+  height: auto;
+  margin: 0 0 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
 .dash-empty strong {
   display: block;
   margin-bottom: 6px;
 }
 
+.dash-empty-illustrated strong {
+  margin-top: 4px;
+}
+
 .dash-empty p {
   margin: 0;
+}
+
+.dash-empty-illustrated p {
+  margin: 0 0 16px;
+  max-width: 300px;
 }
 
 .dash-errand-list {
@@ -4652,6 +4835,78 @@ a.card-link:hover {
 
 .new-errand-offer input {
   max-width: 220px;
+}
+
+.pay-method {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pay-method-amount {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.pay-method-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pay-method-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 12px 12px 14px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.pay-method-option.selected {
+  border-color: rgba(26, 122, 10, 0.5);
+  background: rgba(26, 122, 10, 0.07);
+}
+
+.pay-method-option:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pay-method-option-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.pay-method-warn {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #b45309;
+  line-height: 1.35;
+}
+
+.pay-method-hint {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+}
+
+.pay-offer-modal {
+  width: min(480px, 100%);
+}
+
+.pay-offer-copy {
+  margin: 0 0 14px;
+}
+
+@media (max-width: 520px) {
+  .pay-method-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 .location-picker-search input {

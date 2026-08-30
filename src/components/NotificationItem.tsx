@@ -22,7 +22,8 @@ function formatWhen(iso: string): string {
 
 function iconForType(type: string): string {
   if (type.includes("chat")) return "💬";
-  if (type.includes("offer") || type.includes("errand") || type.includes("proof")) return "📦";
+  if (type.includes("support_ticket")) return "🎫";
+  if (type.includes("offer") || type.includes("errand") || type.includes("proof") || type.includes("dispute")) return "📦";
   if (type.includes("payment") || type.includes("escrow") || type.includes("payout")) return "₦";
   return "🔔";
 }

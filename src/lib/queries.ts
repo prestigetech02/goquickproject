@@ -43,10 +43,19 @@ import {
   fetchErrandTypeSchemas,
   fetchMyErrands,
   rejectErrandCompletion,
+  raiseErrandDispute,
   submitErrandReview,
   type CreateErrandPayload,
 } from "./errandApi";
 import { fetchWallet, fetchWalletTransactions, fundWallet, verifyWalletFunding } from "./walletApi";
+import {
+  createSupportTicket,
+  fetchPublicSupportConfig,
+  fetchSupportTicket,
+  fetchSupportTicketUnreadCount,
+  fetchSupportTickets,
+  replySupportTicket,
+} from "./supportTicketApi";
 import { getStoredUser, setStoredUser } from "./auth";
 import { queryKeys } from "./queryClient";
 import { removeOptimisticMessage, removeThreadFromChats, setThreadUnread, upsertChatMessage } from "./chatCache";
@@ -57,7 +66,7 @@ import type {
   ChatMessage,
   ChatMessagesPayload,
 } from "../types/chat";
-import type { Errand, ErrandStatusFilter } from "../types/errand";
+import type { Errand, ErrandDisputeType, ErrandStatusFilter } from "../types/errand";
 
 const NOTIFICATIONS_PER_PAGE = 20;
 const CHATS_PER_PAGE = 15;
@@ -885,6 +894,98 @@ export function useSubmitErrandReviewMutation(errandId: number) {
         prev ? { ...prev, buyer_has_reviewed: true } : prev,
       );
       void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
+    },
+  });
+}
+
+export function useRaiseErrandDisputeMutation(errandId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { type: ErrandDisputeType; reason: string }) => {
+      const res = await raiseErrandDispute(errandId, payload);
+      if (!res.success) {
+        throw new Error(res.error?.message ?? "Failed to raise dispute");
+      }
+      return res.data?.dispute ?? null;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
+      void qc.invalidateQueries({ queryKey: ["errands"] });
+    },
+  });
+}
+
+export function usePublicSupportConfigQuery() {
+  return useQuery({
+    queryKey: queryKeys.publicConfig,
+    queryFn: fetchPublicSupportConfig,
+    staleTime: 60 * 60 * 1000,
+  });
+}
+
+export function useSupportTicketsInfiniteQuery(status: string = "all") {
+  return useInfiniteQuery({
+    queryKey: [...queryKeys.supportTickets, status] as const,
+    queryFn: ({ pageParam }) =>
+      fetchSupportTickets({
+        page: pageParam,
+        status: status === "all" ? undefined : status,
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last.pagination.current_page < last.pagination.last_page
+        ? last.pagination.current_page + 1
+        : undefined,
+    staleTime: 30_000,
+    refetchOnMount: "always",
+  });
+}
+
+export function useSupportTicketsUnreadCountQuery() {
+  return useQuery({
+    queryKey: queryKeys.supportTicketsUnread,
+    queryFn: fetchSupportTicketUnreadCount,
+    staleTime: 15_000,
+    refetchOnMount: "always",
+  });
+}
+
+export function useSupportTicketQuery(ticketId: number | null) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: queryKeys.supportTicket(ticketId ?? 0),
+    queryFn: async () => {
+      const ticket = await fetchSupportTicket(ticketId!);
+      void qc.invalidateQueries({ queryKey: queryKeys.supportTicketsUnread });
+      void qc.invalidateQueries({ queryKey: queryKeys.supportTickets });
+      return ticket;
+    },
+    enabled: ticketId != null && ticketId > 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useCreateSupportTicketMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createSupportTicket,
+    onSuccess: (ticket) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.supportTickets });
+      void qc.invalidateQueries({ queryKey: queryKeys.supportTicketsUnread });
+      qc.setQueryData(queryKeys.supportTicket(ticket.id), ticket);
+    },
+  });
+}
+
+export function useReplySupportTicketMutation(ticketId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { message: string; attachment?: File | null }) =>
+      replySupportTicket(ticketId, payload),
+    onSuccess: (ticket) => {
+      qc.setQueryData(queryKeys.supportTicket(ticketId), ticket);
+      void qc.invalidateQueries({ queryKey: queryKeys.supportTickets });
+      void qc.invalidateQueries({ queryKey: queryKeys.supportTicketsUnread });
     },
   });
 }
