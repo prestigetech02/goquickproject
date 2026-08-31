@@ -39,6 +39,7 @@ import {
   fetchErrand,
   fetchErrandOffers,
   fetchErrandStats,
+  fetchRunnerPublicStats,
   fetchErrandTracking,
   fetchErrandTypeSchemas,
   fetchMyErrands,
@@ -47,7 +48,7 @@ import {
   submitErrandReview,
   type CreateErrandPayload,
 } from "./errandApi";
-import { fetchWallet, fetchWalletTransactions, fundWallet, verifyWalletFunding } from "./walletApi";
+import { fetchWallet, fetchWalletTransactions, fundWallet, verifyWalletFunding, type WalletInfo } from "./walletApi";
 import {
   createSupportTicket,
   fetchPublicSupportConfig,
@@ -58,6 +59,7 @@ import {
 } from "./supportTicketApi";
 import { getStoredUser, setStoredUser } from "./auth";
 import { queryKeys } from "./queryClient";
+import { insertCreatedErrand } from "./errandCache";
 import { removeOptimisticMessage, removeThreadFromChats, setThreadUnread, upsertChatMessage } from "./chatCache";
 import type { NotificationSettings, User } from "../types/api";
 import type { NotificationListResult } from "./notificationApi";
@@ -66,7 +68,7 @@ import type {
   ChatMessage,
   ChatMessagesPayload,
 } from "../types/chat";
-import type { Errand, ErrandDisputeType, ErrandStatusFilter } from "../types/errand";
+import type { Errand, ErrandDisputeType, ErrandOffer, ErrandStatusFilter } from "../types/errand";
 
 const NOTIFICATIONS_PER_PAGE = 20;
 const CHATS_PER_PAGE = 15;
@@ -630,6 +632,21 @@ export function useErrandQuery(
   });
 }
 
+export function useRunnerPublicStatsQuery(runnerId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.runnerPublicStats(runnerId ?? 0),
+    enabled: runnerId != null && runnerId > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await fetchRunnerPublicStats(runnerId!);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load runner stats");
+      }
+      return res.data;
+    },
+  });
+}
+
 export function useErrandOffersQuery(
   errandId: number | null,
   enabled = true,
@@ -649,12 +666,17 @@ export function useErrandOffersQuery(
   });
 }
 
-export function useErrandTrackingQuery(errandId: number | null, enabled = true) {
+export function useErrandTrackingQuery(
+  errandId: number | null,
+  enabled = true,
+  options?: { refetchInterval?: number | false },
+) {
   return useQuery({
     queryKey: queryKeys.errandTracking(errandId ?? 0),
     enabled: enabled && errandId != null && errandId > 0,
-    staleTime: 15_000,
+    staleTime: 3_000,
     refetchOnMount: "always",
+    refetchInterval: options?.refetchInterval,
     queryFn: async () => {
       const res = await fetchErrandTracking(errandId!);
       if (!res.success || !res.data) {
@@ -663,6 +685,26 @@ export function useErrandTrackingQuery(errandId: number | null, enabled = true) 
       return res.data;
     },
   });
+}
+
+function applyRequesterWalletBalance(
+  qc: ReturnType<typeof useQueryClient>,
+  nextBalance?: number,
+  debitAmount?: number,
+) {
+  qc.setQueryData(queryKeys.wallet, (prev: WalletInfo | undefined) => {
+    if (typeof nextBalance === "number" && Number.isFinite(nextBalance)) {
+      return prev
+        ? { ...prev, balance: nextBalance }
+        : { id: 0, balance: nextBalance, currency: "NGN" };
+    }
+    if (prev && typeof debitAmount === "number" && debitAmount > 0) {
+      return { ...prev, balance: Math.max(0, Number(prev.balance) - debitAmount) };
+    }
+    return prev;
+  });
+  void qc.invalidateQueries({ queryKey: queryKeys.wallet, refetchType: "all" });
+  void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions, refetchType: "all" });
 }
 
 export function useCancelErrandMutation() {
@@ -682,6 +724,8 @@ export function useCancelErrandMutation() {
         void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
       }
       void qc.invalidateQueries({ queryKey: ["errands"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.wallet, refetchType: "all" });
+      void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions, refetchType: "all" });
     },
   });
 }
@@ -694,15 +738,23 @@ export function useAcceptOfferMutation(errandId: number) {
       if (!res.success || !res.data?.errand) {
         throw new Error(res.error?.message ?? "Failed to accept offer");
       }
-      return res.data.errand as Errand;
+      return {
+        errand: res.data.errand as Errand,
+        walletBalance:
+          typeof res.data.wallet_balance === "number" ? res.data.wallet_balance : undefined,
+        offerId,
+      };
     },
-    onSuccess: (errand) => {
+    onSuccess: ({ errand, walletBalance, offerId }) => {
       qc.setQueryData(queryKeys.errand(errandId), errand);
       void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
       void qc.invalidateQueries({ queryKey: ["errands"] });
-      // Escrow debit happens on accept — refresh wallet balance + ledger.
-      void qc.invalidateQueries({ queryKey: queryKeys.wallet });
-      void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions });
+      const offers = qc.getQueryData<ErrandOffer[]>(queryKeys.errandOffers(errandId));
+      const offerAmount = offers?.find((o) => o.id === offerId)?.amount;
+      const heldAmount = Number(
+        errand.payment?.escrow?.amount ?? errand.payment?.amount ?? offerAmount ?? 0,
+      );
+      applyRequesterWalletBalance(qc, walletBalance, heldAmount);
     },
   });
 }
@@ -717,6 +769,8 @@ export function useWalletQuery() {
       }
       return res.data;
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -780,6 +834,7 @@ export function useVerifyWalletFundingMutation() {
 export function useErrandStatsQuery() {
   return useQuery({
     queryKey: queryKeys.errandStats,
+    refetchOnMount: "always",
     queryFn: async () => {
       const res = await fetchErrandStats();
       if (!res.success || !res.data) {
@@ -794,6 +849,7 @@ export function useActiveErrandsPreviewQuery(limit = 3) {
   return useQuery({
     queryKey: [...queryKeys.errands("active"), "preview", limit] as const,
     refetchInterval: 15_000,
+    refetchOnMount: "always",
     queryFn: async () => {
       const res = await fetchMyErrands({ status: "active", page: 1, perPage: limit });
       if (!res.success || !res.data) {
@@ -836,9 +892,8 @@ export function useCreateErrandMutation() {
         ...data.errand,
         attachments: data.attachments ?? data.errand.attachments ?? null,
       };
-      qc.setQueryData(queryKeys.errand(errand.id), errand);
-      void qc.invalidateQueries({ queryKey: ["errands"] });
-      void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
+      insertCreatedErrand(qc, errand);
+      void qc.invalidateQueries({ queryKey: ["errands"], refetchType: "all" });
       void qc.invalidateQueries({ queryKey: queryKeys.wallet });
     },
   });

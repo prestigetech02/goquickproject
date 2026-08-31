@@ -87,10 +87,9 @@ export async function cancelErrand(errandId: number) {
 }
 
 export async function acceptOffer(offerId: number) {
-  const { data } = await http.post<ApiResponse<{ errand: Errand }>>(
-    `/offers/${offerId}/accept`,
-    { payment_method: "wallet" },
-  );
+  const { data } = await http.post<
+    ApiResponse<{ errand: Errand; wallet_balance?: number }>
+  >(`/offers/${offerId}/accept`, { payment_method: "wallet" });
   return data;
 }
 
@@ -131,6 +130,28 @@ export type ErrandStats = {
   cancelled_count: number;
   total_spent: number;
 };
+
+export type RunnerPublicStats = {
+  completed_errands: number;
+  acceptance_rate: number;
+};
+
+export async function fetchRunnerPublicStats(runnerId: number) {
+  const { data } = await http.get<ApiResponse<RunnerPublicStats>>(
+    `/runners/${runnerId}/stats`,
+  );
+  if (!data.success || !data.data) {
+    return {
+      success: false as const,
+      data: null,
+      error: data.error ?? { message: "Failed to load runner stats" },
+    };
+  }
+  return {
+    success: true as const,
+    data: data.data,
+  };
+}
 
 export async function fetchErrandStats() {
   const { data } = await http.get<ApiResponse<ErrandStats>>("/errands/stats");

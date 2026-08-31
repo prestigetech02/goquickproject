@@ -30,6 +30,7 @@ export const queryKeys = {
   errandOffers: (id: number) => ["errands", id, "offers"] as const,
   errandTracking: (id: number) => ["errands", id, "tracking"] as const,
   errandStats: ["errands", "stats"] as const,
+  runnerPublicStats: (runnerId: number) => ["runners", runnerId, "stats"] as const,
   errandTypeSchemas: ["errands", "type-schemas"] as const,
   wallet: ["wallet"] as const,
   walletTransactions: ["wallet", "transactions"] as const,

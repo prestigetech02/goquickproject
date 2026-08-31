@@ -5,6 +5,7 @@ import { syncErrandAfterRealtime } from "./errandCache";
 import { getEcho } from "./echo";
 import { getActiveChatThreadId, incrementThreadUnread } from "./chatCache";
 import { queryKeys } from "./queryClient";
+import type { WalletInfo } from "./walletApi";
 
 type NotificationPayload = {
   id?: number;
@@ -18,6 +19,11 @@ type ErrandStatusPayload = {
   errand_id?: number;
   status?: string;
   updated_at?: string;
+};
+
+type WalletUpdatedPayload = {
+  wallet_balance?: number;
+  balance?: number;
 };
 
 /**
@@ -68,6 +74,18 @@ export function useUserRealtime() {
           void qc.invalidateQueries({ queryKey: ["errands"] });
           void qc.invalidateQueries({ queryKey: queryKeys.errandStats });
         }
+      });
+
+      channel.listen(".wallet.updated", (payload: WalletUpdatedPayload) => {
+        if (cancelled) return;
+        const next = Number(payload?.wallet_balance ?? payload?.balance);
+        if (Number.isFinite(next)) {
+          qc.setQueryData(queryKeys.wallet, (prev: WalletInfo | undefined) =>
+            prev ? { ...prev, balance: next } : { id: 0, balance: next, currency: "NGN" },
+          );
+        }
+        void qc.invalidateQueries({ queryKey: queryKeys.wallet, refetchType: "all" });
+        void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions, refetchType: "all" });
       });
 
       channel.listen(".notification.created", (payload: NotificationPayload) => {

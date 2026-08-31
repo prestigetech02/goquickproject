@@ -9,6 +9,8 @@ export type ErrandRunner = {
   transport_mode?: string | null;
   average_rating?: number | null;
   total_reviews?: number | null;
+  errands_count?: number | null;
+  completed_errands?: number | null;
   current_location?: {
     latitude?: number | null;
     longitude?: number | null;
@@ -27,6 +29,14 @@ export type ErrandPayment = {
     released_at?: string | null;
     refunded_at?: string | null;
   } | null;
+};
+
+export type ErrandCancellation = {
+  applies: boolean;
+  fee_percent: number;
+  fee_amount: number;
+  refund_amount: number;
+  escrow_amount: number;
 };
 
 export type ErrandProof = {
@@ -80,6 +90,7 @@ export type Errand = {
   runner_id?: number | null;
   runner?: ErrandRunner | null;
   payment?: ErrandPayment | null;
+  cancellation?: ErrandCancellation | null;
   proof?: ErrandProof | null;
   attachments?: ErrandAttachment[] | null;
   dispute?: ErrandDispute | null;
@@ -137,8 +148,9 @@ export function errandStatusLabel(status: string): string {
     case "arrived":
       return "At pickup";
     case "in_progress":
-    case "delayed":
       return "In progress";
+    case "delayed":
+      return "Delayed";
     case "waiting_for_buyer":
       return "Awaiting you";
     case "completed":
@@ -245,7 +257,10 @@ export function canRaiseDispute(errand: Errand): boolean {
 
 export function formatNaira(amount: number | null | undefined): string {
   if (amount == null || Number.isNaN(Number(amount))) return "—";
-  return `₦${Number(amount).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return `₦${Number(amount).toLocaleString("en-NG", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function positiveAmount(value: number | null | undefined): number | null {
@@ -259,7 +274,7 @@ export function errandDisplayAmount(errand: Errand): number | null {
   return (
     positiveAmount(errand.payment?.amount) ??
     positiveAmount(errand.base_price) ??
-    positiveAmount(errand.budget_max) ??
-    positiveAmount(errand.budget_min)
+    positiveAmount(errand.budget_min) ??
+    positiveAmount(errand.budget_max)
   );
 }

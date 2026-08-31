@@ -20,6 +20,7 @@ import {
   useCancelErrandMutation,
   useErrandOffersQuery,
   useErrandQuery,
+  useRunnerPublicStatsQuery,
   useRaiseErrandDisputeMutation,
   useRejectErrandCompletionMutation,
   useSubmitErrandReviewMutation,
@@ -49,13 +50,17 @@ const TIMELINE: { key: string; label: string; match: string[] }[] = [
   { key: "accepted", label: "Accepted", match: ["accepted"] },
   { key: "on_my_way", label: "En route", match: ["on_my_way"] },
   { key: "arrived", label: "Arrived", match: ["arrived"] },
-  { key: "in_progress", label: "In progress", match: ["in_progress", "delayed", "waiting_for_buyer"] },
+  { key: "in_progress", label: "In progress", match: ["in_progress", "waiting_for_buyer"] },
   { key: "completed", label: "Completed", match: ["completed", "delivered"] },
 ];
 
 function timelineIndex(status: string): number {
   const s = status.toLowerCase();
   if (s.startsWith("cancelled") || s === "failed" || s === "disputed") return -1;
+  // Delayed is a side-status; keep the main flow on the in-progress step.
+  if (s === "delayed") {
+    return TIMELINE.findIndex((step) => step.key === "in_progress");
+  }
   const idx = TIMELINE.findIndex((step) => step.match.includes(s));
   return idx >= 0 ? idx : 0;
 }
@@ -99,6 +104,12 @@ export function ErrandDetailPage() {
     // Reverb drives updates; keep a slow backup poll in case a broadcast is missed.
     refetchInterval: errandLive ? 30_000 : 8_000,
   });
+  const { data: runnerStats } = useRunnerPublicStatsQuery(errand?.runner?.id ?? null);
+  const completedErrands =
+    runnerStats?.completed_errands ??
+    errand?.runner?.completed_errands ??
+    errand?.runner?.errands_count ??
+    null;
   const showOffers =
     !!errand &&
     ["searching", "pending"].includes(errand.status.toLowerCase()) &&
@@ -172,6 +183,7 @@ export function ErrandDetailPage() {
   }, [searchParams]);
   const tone = errand ? errandStatusTone(errand.status) : "muted";
   const activeStep = errand ? timelineIndex(errand.status) : 0;
+  const isDelayed = errand?.status.toLowerCase() === "delayed";
   const cancelled = errand
     ? errand.status.toLowerCase().startsWith("cancelled") ||
       errand.status.toLowerCase() === "failed"
@@ -423,21 +435,31 @@ export function ErrandDetailPage() {
         {cancelled ? (
           <p className="error">{errandStatusLabel(errand.status)}</p>
         ) : (
-          <ol className="errand-timeline">
-            {TIMELINE.map((step, i) => {
-              const done = i <= activeStep;
-              const current = i === activeStep;
-              return (
-                <li
-                  key={step.key}
-                  className={`errand-timeline-step${done ? " done" : ""}${current ? " current" : ""}`}
-                >
-                  <span className="errand-timeline-dot" aria-hidden />
-                  <span>{step.label}</span>
-                </li>
-              );
-            })}
-          </ol>
+          <>
+            {isDelayed ? (
+              <p className="errand-delay-banner" role="status">
+                Your runner reported a delay. The errand is still active.
+              </p>
+            ) : null}
+            <ol className="errand-timeline">
+              {TIMELINE.map((step, i) => {
+                const done = i <= activeStep;
+                const current = i === activeStep;
+                return (
+                  <li
+                    key={step.key}
+                    className={`errand-timeline-step${done ? " done" : ""}${current ? " current" : ""}${current && isDelayed ? " delayed" : ""}`}
+                  >
+                    <span className="errand-timeline-dot" aria-hidden />
+                    <span>
+                      {step.label}
+                      {current && isDelayed ? " · Delayed" : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
         )}
       </section>
 
@@ -457,6 +479,29 @@ export function ErrandDetailPage() {
                   </span>
                   <div className="errand-runner-meta">
                     <span className="errand-runner-name">{runnerName}</span>
+                    <span className="errand-runner-stats">
+                      {errand.runner.total_reviews != null &&
+                      errand.runner.total_reviews > 0 &&
+                      errand.runner.average_rating != null ? (
+                        <>
+                          <span className="errand-runner-star" aria-hidden>
+                            ★
+                          </span>
+                          {errand.runner.average_rating.toFixed(1)} (
+                          {errand.runner.total_reviews}{" "}
+                          {errand.runner.total_reviews === 1 ? "review" : "reviews"})
+                        </>
+                      ) : (
+                        "No reviews yet"
+                      )}
+                      {completedErrands != null ? (
+                        <>
+                          {" · "}
+                          {completedErrands} completed{" "}
+                          {completedErrands === 1 ? "errand" : "errands"}
+                        </>
+                      ) : null}
+                    </span>
                     {errand.runner.transport_mode ? (
                       <span className="muted">{errand.runner.transport_mode}</span>
                     ) : null}
@@ -641,6 +686,10 @@ export function ErrandDetailPage() {
         <CancelErrandModal
           errandTitle={errand.title || "this errand"}
           escrowHeld={errand.payment?.escrow?.status === "held"}
+          feePercent={errand.cancellation?.fee_percent}
+          feeAmount={errand.cancellation?.fee_amount}
+          refundAmount={errand.cancellation?.refund_amount}
+          escrowAmount={errand.cancellation?.escrow_amount}
           busy={cancelMutation.isPending}
           onClose={() => setCancelOpen(false)}
           onConfirm={() => void confirmCancel()}

@@ -22,11 +22,21 @@ export function PaymentMethodOptions({
   hint,
 }: Props) {
   const walletOk =
-    amount != null && walletBalance != null && walletBalance + 0.0001 >= amount;
+    amount != null &&
+    Number.isFinite(amount) &&
+    walletBalance != null &&
+    Number.isFinite(walletBalance) &&
+    walletBalance + 0.0001 >= amount;
   const shortfall =
-    amount != null && walletBalance != null && !walletOk
+    amount != null &&
+    Number.isFinite(amount) &&
+    walletBalance != null &&
+    Number.isFinite(walletBalance) &&
+    !walletOk
       ? Math.max(0, Math.round((amount - walletBalance) * 100) / 100)
       : 0;
+  const showLowBalanceAlert =
+    method === "wallet" && !walletLoading && shortfall > 0;
 
   return (
     <div className="pay-method">
@@ -54,8 +64,8 @@ export function PaymentMethodOptions({
                 ? `${formatNaira(walletBalance)} available`
                 : "Could not load balance"}
           </span>
-          {method === "wallet" && amount != null && !walletLoading && !walletOk ? (
-            <span className="pay-method-warn">
+          {showLowBalanceAlert ? (
+            <span className="pay-method-warn" role="alert">
               Need {formatNaira(shortfall)} more. Fund with card/transfer, or add money first.
             </span>
           ) : null}

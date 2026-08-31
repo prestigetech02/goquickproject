@@ -24,7 +24,10 @@ export function RaiseDisputeModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    reasonRef.current?.focus();
+    const isMobile = window.matchMedia("(max-width: 639px)").matches;
+    if (!isMobile) {
+      reasonRef.current?.focus();
+    }
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKey(e: KeyboardEvent) {
@@ -53,7 +56,11 @@ export function RaiseDisputeModal({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={() => !busy && onClose()}>
+    <div
+      className="modal-backdrop raise-dispute-backdrop"
+      role="presentation"
+      onClick={() => !busy && onClose()}
+    >
       <div
         className="modal-panel raise-dispute-modal"
         role="dialog"
@@ -76,9 +83,12 @@ export function RaiseDisputeModal({
           </button>
         </div>
 
+        <div className="raise-dispute-errand">
+          {errandTitle || "this errand"}
+        </div>
+
         <p className="notification-modal-body">
-          This will pause <strong>{errandTitle || "this errand"}</strong> until support reviews it.
-          The runner will be notified.
+          This will pause the errand until support reviews it. The runner will be notified.
         </p>
         <p className="cancel-errand-fee">
           Use this when something went wrong with payment or delivery — not for cancelling an errand

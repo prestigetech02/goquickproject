@@ -1,8 +1,13 @@
 import { useEffect, useId, useRef } from "react";
+import { formatNaira } from "../types/errand";
 
 type Props = {
   errandTitle: string;
   escrowHeld: boolean;
+  feePercent?: number | null;
+  feeAmount?: number | null;
+  refundAmount?: number | null;
+  escrowAmount?: number | null;
   busy?: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -11,12 +16,24 @@ type Props = {
 export function CancelErrandModal({
   errandTitle,
   escrowHeld,
+  feePercent,
+  feeAmount,
+  refundAmount,
+  escrowAmount,
   busy = false,
   onConfirm,
   onClose,
 }: Props) {
   const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const breakdown =
+    escrowHeld &&
+    feePercent != null &&
+    feeAmount != null &&
+    refundAmount != null &&
+    escrowAmount != null
+      ? { feePercent, feeAmount, refundAmount, escrowAmount }
+      : null;
 
   useEffect(() => {
     cancelRef.current?.focus();
@@ -64,9 +81,38 @@ export function CancelErrandModal({
           You are about to cancel <strong>{errandTitle || "this errand"}</strong>. This cannot be
           undone from here.
         </p>
-        {escrowHeld ? (
+        {breakdown ? (
+          <div className="cancel-errand-breakdown">
+            {breakdown.feePercent > 0 ? (
+              <p className="cancel-errand-fee">
+                Payment is held in escrow. A {trimPercent(breakdown.feePercent)}% cancellation fee will be
+                deducted and the rest refunded to your wallet.
+              </p>
+            ) : (
+              <p className="cancel-errand-fee">
+                Payment is held in escrow. The full amount will be refunded to your wallet.
+              </p>
+            )}
+            <dl className="cancel-errand-totals">
+              <div>
+                <dt>Held in escrow</dt>
+                <dd>{formatNaira(breakdown.escrowAmount)}</dd>
+              </div>
+              {breakdown.feePercent > 0 ? (
+                <div>
+                  <dt>Cancellation fee ({trimPercent(breakdown.feePercent)}%)</dt>
+                  <dd>{formatNaira(breakdown.feeAmount)}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>Refund to wallet</dt>
+                <dd>{formatNaira(breakdown.refundAmount)}</dd>
+              </div>
+            </dl>
+          </div>
+        ) : escrowHeld ? (
           <p className="cancel-errand-fee">
-            Payment is currently held in escrow. A small cancellation fee may apply.
+            Payment is currently held in escrow. A cancellation fee may apply.
           </p>
         ) : null}
 
@@ -92,4 +138,8 @@ export function CancelErrandModal({
       </div>
     </div>
   );
+}
+
+function trimPercent(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
 }

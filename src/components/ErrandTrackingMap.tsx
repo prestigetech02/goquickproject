@@ -44,6 +44,29 @@ function routeGeoJson(coords: [number, number][]) {
   };
 }
 
+function metersBetween(a: [number, number], b: [number, number]): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLng = toRad(b[0] - a[0]);
+  const lat1 = toRad(a[1]);
+  const lat2 = toRad(b[1]);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function newerPos(a: LiveRunnerPosition | null, b: LiveRunnerPosition | null): LiveRunnerPosition | null {
+  if (!a) return b;
+  if (!b) return a;
+  const ta = Date.parse(a.updatedAt ?? "") || 0;
+  const tb = Date.parse(b.updatedAt ?? "") || 0;
+  return tb > ta ? b : a;
+}
+
 function staleLabel(updatedAt: string | null | undefined): string | null {
   if (!updatedAt) return "Runner location not available yet";
   const ts = Date.parse(updatedAt);
@@ -55,16 +78,20 @@ function staleLabel(updatedAt: string | null | undefined): string | null {
 
 export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) {
   const token = config.mapboxAccessToken;
-  const { data, isPending, error, refetch } = useErrandTrackingQuery(errandId, !!token);
+  const { data, isPending, error, refetch } = useErrandTrackingQuery(errandId, !!token, {
+    refetchInterval: live ? 4_000 : 8_000,
+  });
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const runnerMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const pickupMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const dropoffMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const fittedRef = useRef(false);
+  const fittedFingerprintRef = useRef<string | null>(null);
+  const displayedLngLatRef = useRef<[number, number] | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const animGenRef = useRef(0);
 
-  const effectiveRunner = useMemo<LiveRunnerPosition | null>(() => {
-    if (runnerPos) return runnerPos;
+  const queryRunner = useMemo<LiveRunnerPosition | null>(() => {
     if (data?.runner && isFiniteCoord(data.runner.latitude, data.runner.longitude)) {
       return {
         lat: data.runner.latitude!,
@@ -73,12 +100,19 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
       };
     }
     return null;
-  }, [runnerPos, data]);
+  }, [data]);
+
+  const effectiveRunner = useMemo(
+    () => newerPos(runnerPos, queryRunner),
+    [runnerPos, queryRunner],
+  );
 
   const routeCoords = useMemo(() => {
     if (!data?.polyline) return [] as [number, number][];
     return decodePolyline(data.polyline);
   }, [data?.polyline]);
+
+  const routeFingerprint = `${data?.polyline ?? ""}:${data?.pickup.latitude}:${data?.pickup.longitude}:${data?.dropoff.latitude}:${data?.dropoff.longitude}`;
 
   useEffect(() => {
     if (!token || !mapContainerRef.current || mapRef.current) return;
@@ -103,7 +137,13 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
       dropoffMarkerRef.current = null;
       map.remove();
       mapRef.current = null;
-      fittedRef.current = false;
+      fittedFingerprintRef.current = null;
+      displayedLngLatRef.current = null;
+      animGenRef.current += 1;
+      if (animFrameRef.current != null) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
     };
   }, [token]);
 
@@ -167,23 +207,25 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
         dropoffMarkerRef.current = null;
       }
 
-      // Refit when tracking snapshot / route changes — not on every GPS ping.
-      fitMap(map, data, routeCoords, effectiveRunner);
-      fittedRef.current = true;
+      if (fittedFingerprintRef.current !== routeFingerprint) {
+        fitMap(map, data, routeCoords, effectiveRunner);
+        fittedFingerprintRef.current = routeFingerprint;
+      }
     };
 
     if (map.isStyleLoaded()) apply();
     else map.once("load", apply);
-    // intentionally omit effectiveRunner so live GPS does not re-fit the camera
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fit uses runner snapshot at load time
-  }, [data, routeCoords]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runner GPS must not re-fit the camera
+  }, [data, routeCoords, routeFingerprint]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !effectiveRunner) return;
 
-    const lngLat: [number, number] = [effectiveRunner.lng, effectiveRunner.lat];
-    if (!runnerMarkerRef.current) {
+    const target: [number, number] = [effectiveRunner.lng, effectiveRunner.lat];
+
+    const ensureMarker = (lngLat: [number, number]) => {
+      if (runnerMarkerRef.current) return runnerMarkerRef.current;
       const el = document.createElement("div");
       el.className = "errand-tracking-runner-pin";
       el.title = "Runner";
@@ -196,16 +238,65 @@ export function ErrandTrackingMap({ errandId, runnerPos, live = false }: Props) 
       img.draggable = false;
       el.appendChild(img);
 
-      runnerMarkerRef.current = new mapboxgl.Marker({
+      const marker = new mapboxgl.Marker({
         element: el,
-        // Pin tip sits on the coordinates.
         anchor: "bottom",
         offset: [0, 2],
       })
         .setLngLat(lngLat)
         .addTo(map);
-    } else {
-      runnerMarkerRef.current.setLngLat(lngLat);
+      runnerMarkerRef.current = marker;
+      displayedLngLatRef.current = lngLat;
+      return marker;
+    };
+
+    const from = displayedLngLatRef.current;
+    const marker = ensureMarker(from ?? target);
+
+    animGenRef.current += 1;
+    if (animFrameRef.current != null) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
+    if (!from || metersBetween(from, target) < 2) {
+      marker.setLngLat(target);
+      displayedLngLatRef.current = target;
+      return;
+    }
+
+    const gen = animGenRef.current;
+    const start = performance.now();
+    const duration = Math.min(4_500, Math.max(800, metersBetween(from, target) * 80));
+
+    const tick = (now: number) => {
+      if (gen !== animGenRef.current) return;
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeInOutCubic(t);
+      const next: [number, number] = [
+        from[0] + (target[0] - from[0]) * e,
+        from[1] + (target[1] - from[1]) * e,
+      ];
+      marker.setLngLat(next);
+      displayedLngLatRef.current = next;
+      if (t < 1) {
+        animFrameRef.current = requestAnimationFrame(tick);
+      } else {
+        animFrameRef.current = null;
+      }
+    };
+    animFrameRef.current = requestAnimationFrame(tick);
+
+    const point = map.project(target);
+    const canvas = map.getCanvas();
+    const pad = 72;
+    if (
+      point.x < pad ||
+      point.y < pad ||
+      point.x > canvas.clientWidth - pad ||
+      point.y > canvas.clientHeight - pad
+    ) {
+      map.easeTo({ center: target, duration: 900, essential: true });
     }
   }, [effectiveRunner]);
 

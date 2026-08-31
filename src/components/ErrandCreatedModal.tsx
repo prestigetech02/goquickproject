@@ -13,28 +13,16 @@ export function ErrandCreatedModal({ result, onContinue }: Props) {
   const errand = result.errand;
   const budgetMin = errand.budget_min != null ? Number(errand.budget_min) : null;
   const budgetMax = errand.budget_max != null ? Number(errand.budget_max) : null;
-  const customOffer =
-    budgetMin != null &&
-    budgetMax != null &&
-    Number.isFinite(budgetMin) &&
-    Number.isFinite(budgetMax) &&
-    budgetMin > 0 &&
-    Math.abs(budgetMin - budgetMax) < 0.01
-      ? budgetMin
-      : null;
-  const min = customOffer ?? result.suggested_price?.min ?? budgetMin;
-  const max = customOffer ?? result.suggested_price?.max ?? budgetMax;
-  const priceText =
-    customOffer != null
-      ? formatNaira(customOffer)
-      : min != null && max != null
-        ? Number(min) === Number(max)
-          ? formatNaira(Number(min))
-          : `${formatNaira(Number(min))} – ${formatNaira(Number(max))}`
-        : errand.base_price != null
-          ? formatNaira(errand.base_price)
-          : "—";
-  const priceLabel = customOffer != null ? "Your offer" : "Estimated price";
+  const listed =
+    errand.base_price != null && Number(errand.base_price) > 0
+      ? Number(errand.base_price)
+      : budgetMin != null && budgetMin > 0
+        ? budgetMin
+        : budgetMax != null && budgetMax > 0
+          ? budgetMax
+          : null;
+  const priceText = listed != null ? formatNaira(listed) : "—";
+  const priceLabel = "Amount";
 
   useEffect(() => {
     continueRef.current?.focus();

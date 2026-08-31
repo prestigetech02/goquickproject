@@ -3439,7 +3439,22 @@ a.card-link:hover {
   height: 60px;
   display: block;
   pointer-events: auto;
+  position: relative;
   filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.28));
+}
+
+.errand-tracking-runner-pin::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  border-radius: 50%;
+  background: rgba(11, 110, 79, 0.28);
+  animation: errand-tracking-pulse 1.6s ease-out infinite;
+  pointer-events: none;
 }
 
 .errand-tracking-runner-pin img {
@@ -3449,6 +3464,19 @@ a.card-link:hover {
   display: block;
   user-select: none;
   -webkit-user-drag: none;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes errand-tracking-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
 }
 
 .errand-tracking-runner-dot {
@@ -3507,6 +3535,22 @@ a.card-link:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.errand-runner-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  font-size: 0.82rem;
+  color: var(--color-muted, #6b7280);
+  line-height: 1.35;
+}
+
+.errand-runner-star {
+  color: #f5a623;
+  font-size: 0.85rem;
+  margin-right: 2px;
 }
 
 .errand-runner-chat {
@@ -3585,6 +3629,24 @@ a.card-link:hover {
 
 .errand-timeline-step.current {
   color: var(--color-primary);
+}
+
+.errand-timeline-step.delayed {
+  color: #b45309;
+}
+
+.errand-timeline-step.delayed .errand-timeline-dot {
+  background: #f5a623;
+}
+
+.errand-delay-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(245, 166, 35, 0.14);
+  color: #b45309;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .errand-offer {
@@ -3707,7 +3769,92 @@ a.card-link:hover {
 }
 
 .raise-dispute-modal {
+  width: min(480px, 100%);
   max-width: 480px;
+  max-height: min(90dvh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.raise-dispute-errand {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-muted-bg, #f5f5f5);
+  font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1.35;
+  color: var(--color-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.raise-dispute-modal .notification-modal-body {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+.raise-dispute-modal form.stack {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.raise-dispute-modal .notification-modal-actions {
+  flex-shrink: 0;
+  margin-top: 4px;
+  padding-top: 12px;
+  background: var(--color-surface);
+}
+
+.raise-dispute-modal .notification-modal-actions .btn-primary,
+.raise-dispute-modal .notification-modal-actions .btn-secondary {
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .raise-dispute-backdrop {
+    padding: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    place-items: unset;
+  }
+
+  .raise-dispute-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92dvh, 100%);
+    border-radius: 16px 16px 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .raise-dispute-modal .notification-modal-title {
+    font-size: 1.05rem;
+  }
+
+  .raise-dispute-modal .notification-modal-body,
+  .raise-dispute-modal .cancel-errand-fee {
+    font-size: 0.88rem;
+  }
+
+  .raise-dispute-errand {
+    font-size: 0.95rem;
+  }
+
+  .raise-dispute-modal .dispute-type-option {
+    padding: 8px 10px;
+  }
+
+  .raise-dispute-modal textarea {
+    min-height: 72px;
+  }
 }
 
 .cancel-errand-modal .notification-modal-body {
@@ -3734,6 +3881,29 @@ a.card-link:hover {
   color: #ef6c00;
   font-size: 0.88rem;
   font-weight: 600;
+}
+
+.cancel-errand-totals {
+  margin: 0 0 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.cancel-errand-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.cancel-errand-totals dt {
+  color: var(--color-muted, #6b7280);
+}
+
+.cancel-errand-totals dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .cancel-errand-confirm {
@@ -4886,7 +5056,7 @@ a.card-link:hover {
 .pay-method-warn {
   margin-top: 4px;
   font-size: 0.8rem;
-  color: #b45309;
+  color: var(--color-danger);
   line-height: 1.35;
 }
 

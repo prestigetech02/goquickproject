@@ -78,6 +78,49 @@ function patchInfiniteList(
   return { ...old, pages };
 }
 
+/** Put a newly created errand at the top of dashboard/list caches immediately. */
+export function insertCreatedErrand(qc: QueryClient, errand: Errand) {
+  qc.setQueryData(queryKeys.errand(errand.id), (prev: Errand | undefined) =>
+    prev ? { ...prev, ...errand } : errand,
+  );
+
+  const filters: ErrandStatusFilter[] = ["all", "active"];
+  for (const filter of filters) {
+    qc.setQueryData<InfiniteData<ErrandsListResult>>(queryKeys.errands(filter), (old) => {
+      if (!old?.pages[0]) return old;
+      if (old.pages.some((page) => page.errands.some((e) => e.id === errand.id))) {
+        return old;
+      }
+      const pages = old.pages.map((page, index) => {
+        if (index !== 0) return page;
+        return {
+          ...page,
+          errands: [errand, ...page.errands],
+          pagination: {
+            ...page.pagination,
+            total_items: page.pagination.total_items + 1,
+          },
+        };
+      });
+      return { ...old, pages };
+    });
+  }
+
+  qc.setQueriesData<Errand[]>(
+    { queryKey: [...queryKeys.errands("active"), "preview"] },
+    (old) => {
+      const list = old ?? [];
+      if (list.some((e) => e.id === errand.id)) return list;
+      return [errand, ...list].slice(0, Math.max(list.length, 3));
+    },
+  );
+
+  qc.setQueryData(queryKeys.errandStats, (old: { active_count: number } | undefined) => {
+    if (!old) return old;
+    return { ...old, active_count: old.active_count + 1 };
+  });
+}
+
 /** Instantly apply an errand status to detail, lists, and dashboard preview. */
 export function applyErrandStatus(
   qc: QueryClient,
