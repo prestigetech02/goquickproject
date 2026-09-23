@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useToast } from "./ToastProvider";
 import { PaymentMethodOptions, type ErrandPayMethod } from "./PaymentMethodOptions";
 import { getApiErrorMessage } from "../lib/http";
+import { quoteReservedCoupon } from "../lib/errandApi";
 import {
   completePaystackWalletFunding,
   shortfallToFund,
@@ -13,16 +14,29 @@ import {
   useVerifyWalletFundingMutation,
   useWalletQuery,
 } from "../lib/queries";
-import { formatNaira, runnerDisplayName, type ErrandOffer } from "../types/errand";
+import {
+  formatNaira,
+  runnerDisplayName,
+  type CouponPreview,
+  type ErrandOffer,
+} from "../types/errand";
 
 type Props = {
   errandId: number;
   offer: ErrandOffer;
+  /** Flat admin-configured service fee included in the charge. */
+  serviceFee?: number;
   onClose: () => void;
   onPaid: () => void;
 };
 
-export function AcceptOfferPaymentModal({ errandId, offer, onClose, onPaid }: Props) {
+export function AcceptOfferPaymentModal({
+  errandId,
+  offer,
+  serviceFee = 0,
+  onClose,
+  onPaid,
+}: Props) {
   const titleId = useId();
   const toast = useToast();
   const walletQ = useWalletQuery();
@@ -34,7 +48,15 @@ export function AcceptOfferPaymentModal({ errandId, offer, onClose, onPaid }: Pr
   const balance = walletQ.data?.balance ?? null;
   const [method, setMethod] = useState<ErrandPayMethod>("wallet");
   const [busy, setBusy] = useState(false);
+  const [quote, setQuote] = useState<CouponPreview | null>(null);
+  const [quoting, setQuoting] = useState(true);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [quoteErrorCode, setQuoteErrorCode] = useState<string | null>(null);
   const methodInited = useRef(false);
+
+  const fee = Number.isFinite(serviceFee) ? Math.max(0, serviceFee) : 0;
+  const chargeAmount = (quote?.payable_amount ?? offer.amount) + fee;
+  const couponBlocksPay = Boolean(quoteErrorCode?.startsWith("COUPON_"));
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -50,15 +72,41 @@ export function AcceptOfferPaymentModal({ errandId, offer, onClose, onPaid }: Pr
   }, [onClose, busy]);
 
   useEffect(() => {
-    if (methodInited.current || walletQ.isPending || balance == null) return;
+    if (methodInited.current || walletQ.isPending || balance == null || quoting) return;
     methodInited.current = true;
-    setMethod(balance + 0.0001 >= offer.amount ? "wallet" : "card");
-  }, [walletQ.isPending, balance, offer.amount]);
+    setMethod(balance + 0.0001 >= chargeAmount ? "wallet" : "card");
+  }, [walletQ.isPending, balance, chargeAmount, quoting]);
 
-  const processing = busy || accept.isPending || fund.isPending || verify.isPending;
+  useEffect(() => {
+    let cancelled = false;
+    setQuoting(true);
+    void (async () => {
+      const res = await quoteReservedCoupon(errandId, offer.amount);
+      if (cancelled) return;
+      setQuoting(false);
+      if (!res.success) {
+        setQuote(null);
+        setQuoteError(res.error?.message ?? "Could not quote coupon.");
+        setQuoteErrorCode(res.error?.code ?? null);
+        return;
+      }
+      setQuote(res.data);
+      setQuoteError(null);
+      setQuoteErrorCode(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [errandId, offer.amount]);
+
+  const processing = busy || quoting || accept.isPending || fund.isPending || verify.isPending;
 
   async function payFromWallet() {
-    if (balance == null || balance + 0.0001 < offer.amount) {
+    if (couponBlocksPay) {
+      toast.error(quoteError ?? "This coupon cannot be used on this offer.");
+      return;
+    }
+    if (balance == null || balance + 0.0001 < chargeAmount) {
       toast.error("Insufficient wallet balance. Choose card / transfer.");
       setMethod("card");
       return;
@@ -69,13 +117,17 @@ export function AcceptOfferPaymentModal({ errandId, offer, onClose, onPaid }: Pr
   }
 
   async function payWithCard() {
+    if (couponBlocksPay) {
+      toast.error(quoteError ?? "This coupon cannot be used on this offer.");
+      return;
+    }
     const email = profile?.email?.trim();
     if (!email) {
       toast.error("Add an email to your profile before paying with card or transfer.");
       return;
     }
 
-    const toFund = shortfallToFund(offer.amount, balance ?? 0);
+    const toFund = shortfallToFund(chargeAmount, balance ?? 0);
     if (toFund > 0) {
       toast.info("Opening Paystack…");
       await completePaystackWalletFunding({
@@ -132,31 +184,54 @@ export function AcceptOfferPaymentModal({ errandId, offer, onClose, onPaid }: Pr
         </div>
 
         <p className="muted pay-offer-copy">
-          Accept {runner}’s offer of <strong>{formatNaira(offer.amount)}</strong>. This amount is
-          deducted from your wallet and held in escrow until the errand is completed.
+          Accept {runner}’s offer of <strong>{formatNaira(offer.amount)}</strong>
+          {fee > 0 ? (
+            <>
+              {" "}
+              plus a <strong>{formatNaira(fee)}</strong> service fee
+            </>
+          ) : null}
+          . You pay <strong>{quoting ? "…" : formatNaira(chargeAmount)}</strong>, held in escrow
+          until the errand is completed.
         </p>
 
+        {quoteError ? (
+          <p className="error" style={{ margin: "0 0 12px" }}>
+            {quoteError}
+          </p>
+        ) : null}
+
         <PaymentMethodOptions
-          amount={offer.amount}
+          amount={chargeAmount}
           walletBalance={balance}
-          walletLoading={walletQ.isPending}
+          walletLoading={walletQ.isPending || quoting}
           method={method}
           onChange={setMethod}
-          disabled={processing}
+          disabled={processing || couponBlocksPay}
+          preview={quote}
         />
 
         <div className="notification-modal-actions" style={{ marginTop: 16 }}>
           <button type="button" className="btn-secondary" onClick={onClose} disabled={processing}>
             Cancel
           </button>
-          <button type="button" className="btn-primary" disabled={processing} onClick={() => void handleConfirm()}>
-            {processing
-              ? method === "card"
-                ? "Paying…"
-                : "Accepting…"
-              : method === "card"
-                ? `Pay ${formatNaira(offer.amount)}`
-                : `Pay ${formatNaira(offer.amount)} from wallet`}
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={processing || couponBlocksPay}
+            onClick={() => void handleConfirm()}
+          >
+            {quoting
+              ? "Checking coupon…"
+              : couponBlocksPay
+                ? "Coupon cannot be used"
+                : processing
+                  ? method === "card"
+                    ? "Paying…"
+                    : "Accepting…"
+                  : method === "card"
+                    ? `Pay ${formatNaira(chargeAmount)}`
+                    : `Pay ${formatNaira(chargeAmount)} from wallet`}
           </button>
         </div>
       </div>

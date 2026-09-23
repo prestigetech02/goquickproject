@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { CouponPriceBreakdown } from "./CouponPriceBreakdown";
 import { formatNaira } from "../types/errand";
 import type { CreateErrandResult } from "../lib/errandApi";
 
@@ -14,15 +15,18 @@ export function ErrandCreatedModal({ result, onContinue }: Props) {
   const budgetMin = errand.budget_min != null ? Number(errand.budget_min) : null;
   const budgetMax = errand.budget_max != null ? Number(errand.budget_max) : null;
   const listed =
-    errand.base_price != null && Number(errand.base_price) > 0
-      ? Number(errand.base_price)
-      : budgetMin != null && budgetMin > 0
-        ? budgetMin
-        : budgetMax != null && budgetMax > 0
-          ? budgetMax
-          : null;
+    errand.coupon?.listed_amount && errand.coupon.listed_amount > 0
+      ? errand.coupon.listed_amount
+      : errand.base_price != null && Number(errand.base_price) > 0
+        ? Number(errand.base_price)
+        : budgetMin != null && budgetMin > 0
+          ? budgetMin
+          : budgetMax != null && budgetMax > 0
+            ? budgetMax
+            : null;
+  const coupon = errand.coupon;
   const priceText = listed != null ? formatNaira(listed) : "—";
-  const priceLabel = "Amount";
+  const priceLabel = coupon && coupon.discount_amount > 0 ? "You pay" : "Amount";
 
   useEffect(() => {
     continueRef.current?.focus();
@@ -70,7 +74,11 @@ export function ErrandCreatedModal({ result, onContinue }: Props) {
           ) : null}
           <div className="errand-created-row price">
             <span className="muted">{priceLabel}</span>
-            <strong>{priceText}</strong>
+            {coupon && coupon.discount_amount > 0 ? (
+              <CouponPriceBreakdown preview={coupon} compact />
+            ) : (
+              <strong>{priceText}</strong>
+            )}
           </div>
         </div>
 

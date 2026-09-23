@@ -72,10 +72,10 @@ function ActiveErrandPreview({ errand }: { errand: Errand }) {
     <Link to={`/errands/${errand.id}`} className={`dash-errand tone-${tone}`}>
       <span className="dash-errand-top">
         <span className="dash-errand-title">{errand.title || "Untitled errand"}</span>
-        <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
+        <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status, errand.category)}</span>
       </span>
       <span className="dash-errand-meta muted">
-        {formatErrandCode(errand.id)}
+        {formatErrandCode(errand.id, errand.created_at, errand.code)}
         {errand.created_at ? ` · ${formatDate(errand.created_at)}` : ""}
       </span>
       {route ? <span className="dash-errand-route">{route}</span> : null}

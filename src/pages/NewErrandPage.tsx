@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrandCreatedModal } from "../components/ErrandCreatedModal";
+import { CouponPriceBreakdown } from "../components/CouponPriceBreakdown";
 import { LocationPickerModal } from "../components/LocationPickerModal";
 import {
   PaymentMethodOptions,
@@ -10,6 +11,7 @@ import { useToast } from "../components/ToastProvider";
 import { getStoredUser } from "../lib/auth";
 import {
   estimateErrand,
+  previewCoupon,
   type CreateErrandResult,
   type ErrandEstimate,
   type ErrandTypeSchema,
@@ -29,7 +31,7 @@ import {
 } from "../lib/queries";
 import type { LocationPoint } from "../lib/placesApi";
 import { isProfileComplete } from "../types/api";
-import { formatNaira } from "../types/errand";
+import { formatNaira, type CouponPreview } from "../types/errand";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -202,6 +204,10 @@ export function NewErrandPage() {
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [offerAmount, setOfferAmount] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [couponPreview, setCouponPreview] = useState<CouponPreview | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [created, setCreated] = useState<CreateErrandResult | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [payMethod, setPayMethod] = useState<ErrandPayMethod>("wallet");
@@ -437,10 +443,20 @@ export function NewErrandPage() {
     }
 
     const required = offer ?? floor;
+    const couponText = couponCode.trim();
+    if (couponText && !couponPreview) {
+      toast.error(couponError ?? "Enter a valid coupon code, or clear the field.");
+      return;
+    }
+    const feeOnSubmit =
+      estimate != null && Number.isFinite(Number(estimate.service_fee))
+        ? Math.max(0, Number(estimate.service_fee))
+        : 0;
+    const chargeAmount = (couponPreview?.payable_amount ?? required) + feeOnSubmit;
     const walletBalance = walletQ.data?.balance ?? 0;
 
     if (payMethod === "wallet") {
-      if (walletBalance + 0.0001 < required) {
+      if (walletBalance + 0.0001 < chargeAmount) {
         toast.error("Insufficient wallet balance. Pay with card / transfer, or fund your wallet first.");
         setPayMethod("card");
         return;
@@ -451,7 +467,7 @@ export function NewErrandPage() {
         toast.error("Add an email to your profile before paying with card or transfer.");
         return;
       }
-      const toFund = shortfallToFund(required, walletBalance);
+      const toFund = shortfallToFund(chargeAmount, walletBalance);
       if (toFund > 0) {
         setPaying(true);
         try {
@@ -496,6 +512,7 @@ export function NewErrandPage() {
           pendingAttachments.length > 0
             ? pendingAttachments.map((a) => a.file)
             : undefined,
+        coupon_code: couponPreview ? couponText : undefined,
       });
       setCreated(result);
     } catch (err) {
@@ -520,6 +537,11 @@ export function NewErrandPage() {
         : `${formatNaira(estimate.suggested_price.min)} – ${formatNaira(estimate.suggested_price.max)}`
       : null;
 
+  const serviceFee =
+    estimate != null && Number.isFinite(Number(estimate.service_fee))
+      ? Math.max(0, Number(estimate.service_fee))
+      : 0;
+
   const offerFloor = estimate?.suggested_price?.min ?? null;
   const offerNum = parseOfferAmount(offerAmount);
   const offerInvalid = offerAmount.replace(/,/g, "").trim().length > 0 && offerNum == null;
@@ -527,22 +549,71 @@ export function NewErrandPage() {
     offerFloor != null && offerNum != null && offerNum + 0.0001 < offerFloor;
   const requiredAmount =
     offerBelowFloor || offerInvalid ? null : (offerNum ?? offerFloor);
+  const chargeAmountBase = couponPreview?.payable_amount ?? requiredAmount;
+  const chargeAmount =
+    chargeAmountBase != null ? chargeAmountBase + serviceFee : null;
   const walletBalance = walletQ.data?.balance ?? null;
+  const couponText = couponCode.trim();
+  const couponBlocksSubmit = couponText.length > 0 && !couponPreview;
   const canSubmit =
     !create.isPending &&
     !paying &&
     !zoneError &&
     Boolean(estimate?.suggested_price) &&
     !offerBelowFloor &&
-    !offerInvalid;
+    !offerInvalid &&
+    !couponLoading &&
+    !couponBlocksSubmit;
 
   useEffect(() => {
-    if (payMethodInited.current || walletQ.isPending || requiredAmount == null || walletBalance == null) {
+    const code = couponCode.trim();
+    if (!code) {
+      setCouponPreview(null);
+      setCouponError(null);
+      setCouponLoading(false);
+      return;
+    }
+    if (requiredAmount == null || requiredAmount <= 0) {
+      setCouponPreview(null);
+      setCouponError("Add a listed price to apply a coupon.");
+      setCouponLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCouponLoading(true);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const res = await previewCoupon({
+          code,
+          amount: requiredAmount,
+          category,
+        });
+        if (cancelled) return;
+        setCouponLoading(false);
+        if (!res.success || !res.data) {
+          setCouponPreview(null);
+          setCouponError(res.error?.message ?? "This coupon code is not valid.");
+          return;
+        }
+        setCouponPreview(res.data);
+        setCouponError(null);
+      })();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [couponCode, requiredAmount, category]);
+
+  useEffect(() => {
+    if (payMethodInited.current || walletQ.isPending || chargeAmount == null || walletBalance == null) {
       return;
     }
     payMethodInited.current = true;
-    setPayMethod(walletBalance + 0.0001 >= requiredAmount ? "wallet" : "card");
-  }, [walletQ.isPending, requiredAmount, walletBalance]);
+    setPayMethod(walletBalance + 0.0001 >= chargeAmount ? "wallet" : "card");
+  }, [walletQ.isPending, chargeAmount, walletBalance]);
 
   return (
     <div className="page new-errand-page">
@@ -797,6 +868,12 @@ export function NewErrandPage() {
                   ? ` · ${estimate!.service_zone.zone_name}`
                   : ""}
               </p>
+              <div className="new-errand-fee-rows">
+                <div className="new-errand-fee-row">
+                  <span>Service fee</span>
+                  <strong>{formatNaira(serviceFee)}</strong>
+                </div>
+              </div>
 
               <label className="new-errand-offer">
                 <span className="label">Or set your own price</span>
@@ -834,10 +911,57 @@ export function NewErrandPage() {
           )}
         </section>
 
-        {requiredAmount != null ? (
+        <section className="card stack">
+          <h2 className="profile-card-title">Have a coupon?</h2>
+          <label>
+            <span className="label">Coupon code</span>
+            <div className="coupon-field">
+              <input
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="SAVE20"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+              />
+              {couponLoading ? (
+                <span className="muted coupon-field-status">Checking…</span>
+              ) : couponCode.trim() ? (
+                <button
+                  type="button"
+                  className="btn-ghost coupon-clear"
+                  onClick={() => {
+                    setCouponCode("");
+                    setCouponPreview(null);
+                    setCouponError(null);
+                  }}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </label>
+          {couponError ? (
+            <p className="error" style={{ margin: 0, fontSize: "0.85rem" }}>
+              {couponError}
+            </p>
+          ) : couponPreview ? (
+            <CouponPriceBreakdown preview={couponPreview} compact />
+          ) : requiredAmount != null ? (
+            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+              Enter a code to see your discount on {formatNaira(requiredAmount)}.
+            </p>
+          ) : (
+            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+              Set a listed price first, then apply a code.
+            </p>
+          )}
+        </section>
+
+        {chargeAmount != null ? (
           <section className="card stack">
             <PaymentMethodOptions
-              amount={requiredAmount}
+              amount={chargeAmount}
               walletBalance={walletBalance}
               walletLoading={walletQ.isPending}
               method={payMethod}
@@ -854,9 +978,9 @@ export function NewErrandPage() {
             : create.isPending
               ? "Creating…"
               : payMethod === "card" &&
-                  requiredAmount != null &&
-                  shortfallToFund(requiredAmount, walletBalance ?? 0) > 0
-                ? `Pay ${formatNaira(requiredAmount)} & create`
+                  chargeAmount != null &&
+                  shortfallToFund(chargeAmount, walletBalance ?? 0) > 0
+                ? `Pay ${formatNaira(chargeAmount)} & create`
                 : "Create errand"}
         </button>
       </form>

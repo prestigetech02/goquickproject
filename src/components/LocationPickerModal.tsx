@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CustomPinMap } from "./CustomPinMap";
+import { ServiceZoneUnavailableModal } from "./ServiceZoneUnavailableModal";
 import { getApiErrorMessage } from "../lib/http";
 import {
+  checkLocationServiceability,
   createPlacesSessionToken,
   featureTypeLabel,
   fetchPlaceAutocomplete,
@@ -42,6 +44,7 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
+  const [zoneBlockedName, setZoneBlockedName] = useState<string | null>(null);
 
   const [customLabel, setCustomLabel] = useState("");
   const [pinLat, setPinLat] = useState(LAGOS.latitude);
@@ -126,6 +129,24 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
     };
   }, [query, userCoords, mode]);
 
+  async function ensureServiceable(latitude: number, longitude: number): Promise<boolean> {
+    try {
+      const res = await checkLocationServiceability(latitude, longitude);
+      if (!res.success) {
+        onSelectFailed?.(res.error?.message ?? "Could not verify service area");
+        return false;
+      }
+      if (!res.data.serviceable) {
+        setZoneBlockedName(res.data.zone_name || "this area");
+        return false;
+      }
+      return true;
+    } catch (err) {
+      onSelectFailed?.(getApiErrorMessage(err, "Could not verify service area"));
+      return false;
+    }
+  }
+
   function handlePick(prediction: PlacePrediction) {
     if (pickingRef.current) return;
     pickingRef.current = true;
@@ -153,6 +174,12 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
         }
 
         const place = detailsRes.data;
+        const ok = await ensureServiceable(place.latitude, place.longitude);
+        if (!ok) {
+          onSelectFailed?.("This location is outside our service zones.");
+          return;
+        }
+
         onSelect({
           address: place.formatted_address || place.name || previewAddress,
           latitude: place.latitude,
@@ -163,6 +190,8 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
         });
       } catch (err) {
         onSelectFailed?.(getApiErrorMessage(err, "Could not use that location"));
+      } finally {
+        pickingRef.current = false;
       }
     })();
   }
@@ -178,13 +207,20 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
       return;
     }
     setCustomError(null);
-    onSelect({
-      address: label,
-      latitude: pinLat,
-      longitude: pinLng,
-      resolving: false,
-      isCustom: true,
-    });
+    void (async () => {
+      const ok = await ensureServiceable(pinLat, pinLng);
+      if (!ok) {
+        setCustomError("This location is outside our service zones.");
+        return;
+      }
+      onSelect({
+        address: label,
+        latitude: pinLat,
+        longitude: pinLng,
+        resolving: false,
+        isCustom: true,
+      });
+    })();
   }
 
   function useMyLocation() {
@@ -204,6 +240,7 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
   }
 
   return (
+    <>
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div
         className={`modal-panel location-picker-modal${mode === "custom" ? " custom-mode" : ""}`}
@@ -346,5 +383,12 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
         )}
       </div>
     </div>
+    {zoneBlockedName ? (
+      <ServiceZoneUnavailableModal
+        zoneName={zoneBlockedName}
+        onClose={() => setZoneBlockedName(null)}
+      />
+    ) : null}
+    </>
   );
 }

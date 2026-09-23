@@ -70,6 +70,19 @@ export type ErrandDispute = {
   resolved_at?: string | null;
 };
 
+export type CouponPreview = {
+  valid: boolean;
+  coupon_id?: number | null;
+  code: string;
+  name?: string | null;
+  discount_type?: string | null;
+  listed_amount: number;
+  discount_amount: number;
+  payable_amount: number;
+  subsidy_amount: number;
+  job_amount: number;
+};
+
 export type Errand = {
   id: number;
   title: string;
@@ -95,12 +108,16 @@ export type Errand = {
   attachments?: ErrandAttachment[] | null;
   dispute?: ErrandDispute | null;
   buyer_has_reviewed?: boolean;
+  code?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   accepted_at?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
   metadata?: Record<string, unknown> | null;
+  coupon?: CouponPreview | null;
+  /** Flat buyer service fee (₦) from admin; added on top of offer/payable at payment. */
+  service_fee?: number | null;
 };
 
 export type ErrandOffer = {
@@ -136,8 +153,47 @@ export function runnerDisplayName(runner?: ErrandRunner | ErrandOffer["runner"] 
   return name || "Runner";
 }
 
-export function errandStatusLabel(status: string): string {
-  switch (status.toLowerCase()) {
+export function isLocationCompletionCategory(category?: string | null): boolean {
+  const c = (category ?? "").toLowerCase();
+  return c === "queue" || c === "domestic";
+}
+
+export function errandStatusLabel(status: string, category?: string | null): string {
+  const s = status.toLowerCase();
+  const cat = (category ?? "").toLowerCase();
+  if (isLocationCompletionCategory(cat)) {
+    switch (s) {
+      case "pending":
+      case "searching":
+      case "draft":
+        return "Errand submitted";
+      case "accepted":
+        return "Runner assigned";
+      case "on_my_way":
+        return "On the way";
+      case "arrived":
+      case "in_progress":
+        return cat === "queue" ? "At queue location" : "At errand location";
+      case "delayed":
+        return "Delayed";
+      case "waiting_for_buyer":
+        return "Awaiting you";
+      case "completed":
+      case "delivered":
+        return "Errand completed";
+      case "cancelled":
+      case "cancelled_by_buyer":
+      case "cancelled_by_runner":
+        return "Cancelled";
+      case "failed":
+        return "Failed";
+      case "disputed":
+        return "Disputed";
+      default:
+        return status.replace(/_/g, " ");
+    }
+  }
+  switch (s) {
     case "pending":
     case "searching":
       return "Pending";
@@ -269,12 +325,42 @@ function positiveAmount(value: number | null | undefined): number | null {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
-/** Paid/escrow amount when present; otherwise the price quoted at errand creation. */
+export function parseCouponPreview(raw: unknown): CouponPreview | null {
+  if (!raw || typeof raw !== "object") return null;
+  const json = raw as Record<string, unknown>;
+  const listed = positiveAmount(Number(json.listed_amount ?? json.job_amount)) ?? 0;
+  const discount = Number(json.discount_amount);
+  const payable = Number(json.payable_amount);
+  return {
+    valid: json.valid !== false,
+    coupon_id:
+      json.coupon_id != null
+        ? Number(json.coupon_id)
+        : json.id != null
+          ? Number(json.id)
+          : null,
+    code: String(json.code ?? "").trim(),
+    name: typeof json.name === "string" ? json.name : null,
+    discount_type: typeof json.discount_type === "string" ? json.discount_type : null,
+    listed_amount: listed,
+    discount_amount: Number.isFinite(discount) ? discount : 0,
+    payable_amount: Number.isFinite(payable) && payable > 0 ? payable : listed,
+    subsidy_amount: Number(json.subsidy_amount) || (Number.isFinite(discount) ? discount : 0),
+    job_amount: Number(json.job_amount) || listed,
+  };
+}
+
+/** Listed job price. Coupon listed is preferred so escrow (payable) is not shown as the job amount. */
 export function errandDisplayAmount(errand: Errand): number | null {
   return (
+    positiveAmount(errand.coupon?.listed_amount) ??
     positiveAmount(errand.payment?.amount) ??
     positiveAmount(errand.base_price) ??
     positiveAmount(errand.budget_min) ??
     positiveAmount(errand.budget_max)
   );
+}
+
+export function errandPayableAmount(errand: Errand): number | null {
+  return positiveAmount(errand.coupon?.payable_amount) ?? errandDisplayAmount(errand);
 }

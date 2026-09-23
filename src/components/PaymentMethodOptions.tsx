@@ -1,4 +1,5 @@
-import { formatNaira } from "../types/errand";
+import { formatNaira, type CouponPreview } from "../types/errand";
+import { CouponPriceBreakdown } from "./CouponPriceBreakdown";
 
 export type ErrandPayMethod = "wallet" | "card";
 
@@ -10,6 +11,7 @@ type Props = {
   onChange: (method: ErrandPayMethod) => void;
   disabled?: boolean;
   hint?: string;
+  preview?: CouponPreview | null;
 };
 
 export function PaymentMethodOptions({
@@ -20,6 +22,7 @@ export function PaymentMethodOptions({
   onChange,
   disabled = false,
   hint,
+  preview,
 }: Props) {
   const walletOk =
     amount != null &&
@@ -41,7 +44,9 @@ export function PaymentMethodOptions({
   return (
     <div className="pay-method">
       <span className="label">Pay with</span>
-      {amount != null ? (
+      {preview && preview.discount_amount > 0 ? (
+        <CouponPriceBreakdown preview={preview} compact />
+      ) : amount != null ? (
         <p className="pay-method-amount">
           Amount: <strong>{formatNaira(amount)}</strong>
         </p>

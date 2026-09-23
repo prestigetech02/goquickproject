@@ -3604,10 +3604,22 @@ a.card-link:hover {
 
 .errand-timeline-step {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   color: var(--color-muted);
   font-size: 0.92rem;
+}
+
+.errand-timeline-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.errand-timeline-sub {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-primary);
 }
 
 .errand-timeline-dot {
@@ -4762,6 +4774,27 @@ a.card-link:hover {
   color: var(--color-primary);
 }
 
+.new-errand-fee-rows {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.new-errand-fee-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--color-muted, #667085);
+}
+
+.new-errand-fee-row strong {
+  color: var(--color-text, #101828);
+  font-weight: 600;
+}
+
 .new-errand-attachments {
   display: flex;
   flex-direction: column;
@@ -5063,6 +5096,62 @@ a.card-link:hover {
 .pay-method-hint {
   margin: 4px 0 0;
   font-size: 0.85rem;
+}
+
+.coupon-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coupon-field input {
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.coupon-field-status,
+.coupon-clear {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.coupon-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.coupon-breakdown.compact {
+  gap: 4px;
+}
+
+.coupon-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.92rem;
+}
+
+.coupon-breakdown-row.save {
+  color: var(--color-primary);
+}
+
+.coupon-breakdown-row.pay {
+  font-weight: 700;
+}
+
+.coupon-breakdown-row.pay strong {
+  color: var(--color-primary);
+}
+
+.errand-created-row.price {
+  flex-wrap: wrap;
+}
+
+.errand-created-row.price .coupon-breakdown {
+  margin-top: 8px;
 }
 
 .pay-offer-modal {

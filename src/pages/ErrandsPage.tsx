@@ -42,10 +42,10 @@ function ErrandRow({
     >
       <span className="errand-row-top">
         <span className="errand-row-title">{errand.title || "Untitled errand"}</span>
-        <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
+        <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status, errand.category)}</span>
       </span>
       <span className="errand-row-meta muted">
-        {formatErrandCode(errand.id)}
+        {formatErrandCode(errand.id, errand.created_at, errand.code)}
         {errand.created_at ? ` · ${formatDate(errand.created_at)}` : ""}
       </span>
       {route ? <span className="errand-row-route">{route}</span> : null}

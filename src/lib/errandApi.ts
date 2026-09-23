@@ -2,6 +2,7 @@ import { http } from "./http";
 import type { ApiResponse } from "../types/api";
 import { parseChatThread, type ChatThread } from "../types/chat";
 import type {
+  CouponPreview,
   Errand,
   ErrandDispute,
   ErrandDisputeType,
@@ -10,7 +11,21 @@ import type {
   ErrandStatusFilter,
   ErrandsListResult,
 } from "../types/errand";
+import { parseCouponPreview } from "../types/errand";
 import type { ErrandTracking } from "../types/tracking";
+
+function apiErr(err: unknown, fallback: string): { message: string; code?: string } {
+  const ax = err as { response?: { data?: ApiResponse<unknown> } };
+  const body = ax.response?.data;
+  return {
+    message: body?.error?.message ?? fallback,
+    code: body?.error?.code,
+  };
+}
+
+function withCoupon(errand: Errand): Errand {
+  return { ...errand, coupon: parseCouponPreview(errand.coupon) };
+}
 
 export async function fetchMyErrands(params?: {
   status?: Exclude<ErrandStatusFilter, "all">;
@@ -41,7 +56,7 @@ export async function fetchMyErrands(params?: {
   return {
     success: true as const,
     data: {
-      errands: data.data.errands ?? [],
+      errands: (data.data.errands ?? []).map(withCoupon),
       pagination: data.data.pagination ?? {
         current_page: 1,
         total_pages: 1,
@@ -63,7 +78,7 @@ export async function fetchErrand(errandId: number) {
     payload && typeof payload === "object" && "errand" in payload
       ? (payload as { errand: Errand }).errand
       : (payload as Errand);
-  return { ...data, data: errand };
+  return { ...data, data: withCoupon(errand) };
 }
 
 export async function fetchErrandOffers(errandId: number) {
@@ -192,6 +207,8 @@ export type ErrandEstimate = {
     engine?: string;
     breakdown?: Record<string, unknown>;
   };
+  /** Flat buyer service fee from admin (₦). */
+  service_fee?: number;
   service_zone: {
     serviceable: boolean;
     zone_id?: number | null;
@@ -218,6 +235,7 @@ export type CreateErrandPayload = {
   metadata?: Record<string, unknown> | null;
   /** Optional files for instructions (images, PDF, audio) — sent as multipart `attachments[]`. */
   attachments?: File[];
+  coupon_code?: string | null;
 };
 
 export type CreateErrandResult = {
@@ -226,6 +244,7 @@ export type CreateErrandResult = {
   estimate?: ErrandEstimate["estimate"];
   suggested_price?: ErrandEstimate["suggested_price"];
   service_zone?: ErrandEstimate["service_zone"];
+  coupon?: CouponPreview | null;
 };
 
 export async function fetchErrandTypeSchemas() {
@@ -294,6 +313,7 @@ function appendCreateErrandFormData(payload: CreateErrandPayload): FormData {
     ["dropoff_latitude", payload.dropoff_latitude],
     ["dropoff_longitude", payload.dropoff_longitude],
     ["estimated_stops", payload.estimated_stops],
+    ["coupon_code", payload.coupon_code],
   ];
 
   for (const [key, value] of scalarEntries) {
@@ -327,6 +347,7 @@ export async function createErrand(payload: CreateErrandPayload) {
       : await http.post<ApiResponse<CreateErrandResult>>("/errands", {
           ...payload,
           attachments: undefined,
+          coupon_code: payload.coupon_code?.trim() || undefined,
         });
 
     if (!data.success || !data.data?.errand) {
@@ -336,7 +357,17 @@ export async function createErrand(payload: CreateErrandPayload) {
         error: data.error ?? { message: "Failed to create errand", code: undefined as string | undefined },
       };
     }
-    return { success: true as const, data: data.data, message: data.message };
+    return {
+      success: true as const,
+      data: {
+        ...data.data,
+        errand: withCoupon({
+          ...data.data.errand,
+          coupon: data.data.errand.coupon ?? data.data.coupon ?? null,
+        }),
+      },
+      message: data.message,
+    };
   } catch (err: unknown) {
     const ax = err as { response?: { data?: ApiResponse<unknown> } };
     const body = ax.response?.data;
@@ -400,6 +431,75 @@ export async function raiseErrandDispute(
     },
   );
   return data;
+}
+
+export async function previewCoupon(payload: {
+  code: string;
+  amount: number;
+  category?: string | null;
+}) {
+  try {
+    const { data } = await http.post<ApiResponse<{ coupon: unknown }>>("/coupons/preview", {
+      code: payload.code,
+      amount: payload.amount,
+      ...(payload.category ? { category: payload.category } : {}),
+    });
+    const coupon = parseCouponPreview(data.data?.coupon);
+    if (!data.success || !coupon) {
+      return {
+        success: false as const,
+        data: null,
+        error: data.error ?? { message: "This coupon code is not valid." },
+      };
+    }
+    return { success: true as const, data: coupon };
+  } catch (err: unknown) {
+    return { success: false as const, data: null, error: apiErr(err, "This coupon code is not valid.") };
+  }
+}
+
+export async function quoteReservedCoupon(errandId: number, amount: number) {
+  try {
+    const { data } = await http.post<ApiResponse<{ coupon: unknown }>>(
+      `/errands/${errandId}/coupon/quote`,
+      { amount },
+    );
+    if (!data.success) {
+      return {
+        success: false as const,
+        data: null,
+        error: data.error ?? { message: "Could not quote coupon." },
+      };
+    }
+    return { success: true as const, data: parseCouponPreview(data.data?.coupon) };
+  } catch (err: unknown) {
+    return { success: false as const, data: null, error: apiErr(err, "Could not quote coupon.") };
+  }
+}
+
+export async function removeCoupon(errandId: number) {
+  try {
+    const { data } = await http.delete<ApiResponse<{ errand?: Errand }>>(
+      `/errands/${errandId}/coupon`,
+    );
+    if (!data.success) {
+      return {
+        success: false as const,
+        data: null,
+        error: data.error ?? { message: "Could not remove this coupon." },
+      };
+    }
+    return {
+      success: true as const,
+      data: data.data?.errand ? withCoupon(data.data.errand) : null,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false as const,
+      data: null,
+      error: apiErr(err, "Could not remove this coupon."),
+    };
+  }
 }
 
 export async function fetchErrandTracking(errandId: number) {

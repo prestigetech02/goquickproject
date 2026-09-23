@@ -10,6 +10,7 @@ import {
 import { formatNaira } from "../types/errand";
 import {
   walletTxLabel,
+  walletTxSubtitle,
   walletTxTone,
   type WalletTransaction,
 } from "../lib/walletApi";
@@ -104,6 +105,9 @@ function TxRow({ tx, onOpen }: { tx: WalletTransaction; onOpen: () => void }) {
     <button type="button" className={`wallet-tx tone-${tone}`} onClick={onOpen}>
       <span className="wallet-tx-main">
         <strong className="wallet-tx-title">{walletTxLabel(tx)}</strong>
+        {walletTxSubtitle(tx) ? (
+          <span className="wallet-tx-meta muted">{walletTxSubtitle(tx)}</span>
+        ) : null}
         <span className="wallet-tx-meta muted">{formatDateTime(tx.created_at)}</span>
         <span className={`wallet-tx-status tone-${tone}`}>{String(tx.status)}</span>
       </span>

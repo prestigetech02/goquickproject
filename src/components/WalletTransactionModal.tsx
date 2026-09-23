@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { formatDateTime } from "../lib/datetime";
-import { formatErrandCode } from "../lib/publicId";
 import { getApiErrorMessage } from "../lib/http";
 import { useVerifyWalletFundingMutation } from "../lib/queries";
 import { formatNaira } from "../types/errand";
 import {
   walletTxLabel,
+  walletTxSubtitle,
   walletTxTone,
   type WalletTransaction,
 } from "../lib/walletApi";
@@ -120,13 +120,13 @@ export function WalletTransactionModal({ tx, onClose, onRefreshed }: Props) {
 
         <div className="wallet-tx-detail-list">
           <DetailRow label="Description" value={walletTxLabel(current)} />
+          {walletTxSubtitle(current) ? (
+            <DetailRow label="Details" value={walletTxSubtitle(current)} />
+          ) : null}
           <DetailRow label="Type" value={type.toUpperCase()} />
           <DetailRow label="Status" value={status.toUpperCase()} />
           <DetailRow label="Reference" value={displayReference} />
           <DetailRow label="Date" value={formatDateTime(current.created_at)} />
-          {current.errand_id ? (
-            <DetailRow label="Errand" value={formatErrandCode(current.errand_id)} />
-          ) : null}
         </div>
 
         {message ? <p className="info">{message}</p> : null}

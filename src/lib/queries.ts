@@ -45,6 +45,7 @@ import {
   fetchMyErrands,
   rejectErrandCompletion,
   raiseErrandDispute,
+  removeCoupon,
   submitErrandReview,
   type CreateErrandPayload,
 } from "./errandApi";
@@ -726,6 +727,31 @@ export function useCancelErrandMutation() {
       void qc.invalidateQueries({ queryKey: ["errands"] });
       void qc.invalidateQueries({ queryKey: queryKeys.wallet, refetchType: "all" });
       void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions, refetchType: "all" });
+    },
+  });
+}
+
+export function useRemoveCouponMutation(errandId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await removeCoupon(errandId);
+      if (!res.success) {
+        const err = new Error(res.error?.message ?? "Could not remove this coupon.") as Error & {
+          code?: string;
+        };
+        err.code = res.error?.code;
+        throw err;
+      }
+      return res.data;
+    },
+    onSuccess: (errand) => {
+      qc.setQueryData(queryKeys.errand(errandId), (prev: Errand | undefined) => {
+        if (errand) return { ...errand, coupon: null };
+        return prev ? { ...prev, coupon: null } : prev;
+      });
+      void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
+      void qc.invalidateQueries({ queryKey: ["errands"] });
     },
   });
 }

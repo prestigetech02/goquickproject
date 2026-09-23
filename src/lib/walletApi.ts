@@ -19,6 +19,10 @@ export type WalletTransaction = {
   status: WalletTxStatus | string;
   reference?: string | null;
   description?: string | null;
+  display_title?: string | null;
+  display_subtitle?: string | null;
+  errand_code?: string | null;
+  errand_category?: string | null;
   meta?: Record<string, unknown> | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -126,9 +130,36 @@ export async function verifyWalletFunding(reference: string) {
 }
 
 export function walletTxLabel(tx: WalletTransaction): string {
+  const title = tx.display_title?.trim();
+  if (title) return title;
   const desc = tx.description?.trim();
   if (desc) return desc;
   return tx.type === "credit" ? "Credit" : "Debit";
+}
+
+export function walletTxSubtitle(tx: WalletTransaction): string {
+  const coupon = couponSubtitle(tx);
+  const fromApi = tx.display_subtitle?.trim();
+  if (fromApi) {
+    if (coupon && !fromApi.toLowerCase().includes("coupon")) return `${fromApi} · ${coupon}`;
+    return fromApi;
+  }
+  if (tx.errand_code) {
+    return coupon ? `Errand #${tx.errand_code} · ${coupon}` : `Errand #${tx.errand_code}`;
+  }
+  return coupon;
+}
+
+function couponSubtitle(tx: WalletTransaction): string {
+  const meta = tx.meta;
+  if (!meta) return "";
+  const code = String(meta.coupon_code ?? "").trim();
+  if (!code) return "";
+  const raw = meta.coupon_discount_amount;
+  const amount = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(amount) || amount <= 0) return `Coupon ${code}`;
+  const formatted = amount === Math.round(amount) ? String(amount) : amount.toFixed(2);
+  return `Coupon ${code} · −₦${formatted}`;
 }
 
 export function walletTxTone(tx: WalletTransaction): "ok" | "warn" | "danger" | "muted" {

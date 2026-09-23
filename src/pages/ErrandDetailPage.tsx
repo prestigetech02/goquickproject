@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AcceptOfferPaymentModal } from "../components/AcceptOfferPaymentModal";
 import { CancelErrandModal } from "../components/CancelErrandModal";
+import { CouponPriceBreakdown } from "../components/CouponPriceBreakdown";
 import {
   ErrandTrackingMap,
   type LiveRunnerPosition,
@@ -23,6 +24,7 @@ import {
   useRunnerPublicStatsQuery,
   useRaiseErrandDisputeMutation,
   useRejectErrandCompletionMutation,
+  useRemoveCouponMutation,
   useSubmitErrandReviewMutation,
   useVerifyWalletFundingMutation,
 } from "../lib/queries";
@@ -37,6 +39,7 @@ import {
   errandStatusLabel,
   errandStatusTone,
   errandDisplayAmount,
+  errandPayableAmount,
   formatNaira,
   proofStatusLabel,
   runnerDisplayName,
@@ -45,7 +48,9 @@ import {
 } from "../types/errand";
 import { isTrackableErrandStatus } from "../types/tracking";
 
-const TIMELINE: { key: string; label: string; match: string[] }[] = [
+type TimelineStep = { key: string; label: string; match: string[]; subtitle?: string };
+
+const SHOPPING_TIMELINE: TimelineStep[] = [
   { key: "searching", label: "Searching", match: ["draft", "searching", "pending"] },
   { key: "accepted", label: "Accepted", match: ["accepted"] },
   { key: "on_my_way", label: "En route", match: ["on_my_way"] },
@@ -54,14 +59,49 @@ const TIMELINE: { key: string; label: string; match: string[] }[] = [
   { key: "completed", label: "Completed", match: ["completed", "delivered"] },
 ];
 
-function timelineIndex(status: string): number {
+function timelineFor(errand: { category?: string | null; pickup_address?: string | null }): TimelineStep[] {
+  const category = (errand.category ?? "").toLowerCase();
+  const location = (errand.pickup_address ?? "").trim();
+  if (category === "queue") {
+    return [
+      { key: "searching", label: "Errand submitted", match: ["draft", "searching", "pending"] },
+      { key: "accepted", label: "Runner assigned", match: ["accepted"] },
+      { key: "on_my_way", label: "On the way", match: ["on_my_way"] },
+      {
+        key: "arrived",
+        label: "At queue location",
+        match: ["arrived", "in_progress", "waiting_for_buyer"],
+        subtitle: location || "Queue location",
+      },
+      { key: "completed", label: "Errand completed", match: ["completed", "delivered"] },
+    ];
+  }
+  if (category === "domestic") {
+    return [
+      { key: "searching", label: "Errand submitted", match: ["draft", "searching", "pending"] },
+      { key: "accepted", label: "Runner assigned", match: ["accepted"] },
+      { key: "on_my_way", label: "On the way", match: ["on_my_way"] },
+      {
+        key: "arrived",
+        label: "At errand location",
+        match: ["arrived", "in_progress", "waiting_for_buyer"],
+        subtitle: location || "Errand location",
+      },
+      { key: "completed", label: "Errand completed", match: ["completed", "delivered"] },
+    ];
+  }
+  return SHOPPING_TIMELINE;
+}
+
+function timelineIndex(status: string, steps: TimelineStep[]): number {
   const s = status.toLowerCase();
   if (s.startsWith("cancelled") || s === "failed" || s === "disputed") return -1;
-  // Delayed is a side-status; keep the main flow on the in-progress step.
   if (s === "delayed") {
-    return TIMELINE.findIndex((step) => step.key === "in_progress");
+    const locationStep = steps.findIndex((step) => step.key === "arrived" && step.match.includes("in_progress"));
+    if (locationStep >= 0) return locationStep;
+    return steps.findIndex((step) => step.key === "in_progress");
   }
-  const idx = TIMELINE.findIndex((step) => step.match.includes(s));
+  const idx = steps.findIndex((step) => step.match.includes(s));
   return idx >= 0 ? idx : 0;
 }
 
@@ -125,6 +165,7 @@ export function ErrandDetailPage() {
   const acceptProof = useAcceptErrandCompletionMutation(validId ?? 0);
   const rejectProof = useRejectErrandCompletionMutation(validId ?? 0);
   const submitReview = useSubmitErrandReviewMutation(validId ?? 0);
+  const removeCouponMutation = useRemoveCouponMutation(validId ?? 0);
 
   useEffect(() => {
     setRunnerLivePos(null);
@@ -182,7 +223,8 @@ export function ErrandDetailPage() {
     return s ? `?${s}` : "";
   }, [searchParams]);
   const tone = errand ? errandStatusTone(errand.status) : "muted";
-  const activeStep = errand ? timelineIndex(errand.status) : 0;
+  const timelineSteps = errand ? timelineFor(errand) : SHOPPING_TIMELINE;
+  const activeStep = errand ? timelineIndex(errand.status, timelineSteps) : 0;
   const isDelayed = errand?.status.toLowerCase() === "delayed";
   const cancelled = errand
     ? errand.status.toLowerCase().startsWith("cancelled") ||
@@ -313,6 +355,10 @@ export function ErrandDetailPage() {
   const runnerName = runnerDisplayName(errand.runner);
   const pendingOffers = offers.filter((o) => o.status === "pending");
   const displayAmount = errandDisplayAmount(errand);
+  const payableAmount = errandPayableAmount(errand);
+  const coupon = errand.coupon;
+  const canRemoveCoupon =
+    Boolean(coupon) && ["searching", "pending"].includes(errand.status.toLowerCase());
 
   return (
     <div className="page errand-detail">
@@ -324,11 +370,11 @@ export function ErrandDetailPage() {
         <div>
           <h1>{errand.title || "Untitled errand"}</h1>
           <p className="muted">
-            {formatErrandCode(errand.id)}
+            {formatErrandCode(errand.id, errand.created_at, errand.code)}
             {errand.created_at ? ` · ${formatDateTime(errand.created_at)}` : ""}
           </p>
         </div>
-        <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status)}</span>
+        <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status, errand.category)}</span>
       </header>
 
       {errand.dispute ? (
@@ -400,13 +446,22 @@ export function ErrandDetailPage() {
       <section className="card stack">
         <h2 className="profile-card-title">Locations</h2>
         <div className="errand-kv">
-          <span className="muted">Pickup</span>
+          <span className="muted">
+            {(errand.category ?? "").toLowerCase() === "queue"
+              ? "Queue location"
+              : (errand.category ?? "").toLowerCase() === "domestic"
+                ? "Errand location"
+                : "Pickup"}
+          </span>
           <span>{errand.pickup_address || "—"}</span>
         </div>
-        <div className="errand-kv">
-          <span className="muted">Drop-off</span>
-          <span>{errand.dropoff_address || "—"}</span>
-        </div>
+        {(errand.category ?? "").toLowerCase() === "queue" ||
+        (errand.category ?? "").toLowerCase() === "domestic" ? null : (
+          <div className="errand-kv">
+            <span className="muted">Drop-off</span>
+            <span>{errand.dropoff_address || "—"}</span>
+          </div>
+        )}
         {errand.category ? (
           <div className="errand-kv">
             <span className="muted">Category</span>
@@ -433,7 +488,7 @@ export function ErrandDetailPage() {
       <section className="card stack">
         <h2 className="profile-card-title">Status</h2>
         {cancelled ? (
-          <p className="error">{errandStatusLabel(errand.status)}</p>
+          <p className="error">{errandStatusLabel(errand.status, errand.category)}</p>
         ) : (
           <>
             {isDelayed ? (
@@ -442,7 +497,7 @@ export function ErrandDetailPage() {
               </p>
             ) : null}
             <ol className="errand-timeline">
-              {TIMELINE.map((step, i) => {
+              {timelineSteps.map((step, i) => {
                 const done = i <= activeStep;
                 const current = i === activeStep;
                 return (
@@ -451,9 +506,14 @@ export function ErrandDetailPage() {
                     className={`errand-timeline-step${done ? " done" : ""}${current ? " current" : ""}${current && isDelayed ? " delayed" : ""}`}
                   >
                     <span className="errand-timeline-dot" aria-hidden />
-                    <span>
-                      {step.label}
-                      {current && isDelayed ? " · Delayed" : ""}
+                    <span className="errand-timeline-copy">
+                      <span>
+                        {step.label}
+                        {current && isDelayed ? " · Delayed" : ""}
+                      </span>
+                      {step.subtitle ? (
+                        <span className="errand-timeline-sub">{step.subtitle}</span>
+                      ) : null}
                     </span>
                   </li>
                 );
@@ -533,10 +593,32 @@ export function ErrandDetailPage() {
           ) : (
             <p className="muted">No runner assigned yet.</p>
           )}
-          {displayAmount != null ? (
+          {coupon && coupon.discount_amount > 0 ? (
+            <>
+              <CouponPriceBreakdown preview={coupon} />
+              {canRemoveCoupon ? (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ alignSelf: "flex-start", padding: 0 }}
+                  disabled={removeCouponMutation.isPending}
+                  onClick={() => {
+                    void removeCouponMutation
+                      .mutateAsync()
+                      .then(() => toast.success("Coupon removed."))
+                      .catch((err) =>
+                        toast.error(getApiErrorMessage(err, "Could not remove this coupon.")),
+                      );
+                  }}
+                >
+                  {removeCouponMutation.isPending ? "Removing coupon…" : "Remove coupon"}
+                </button>
+              ) : null}
+            </>
+          ) : displayAmount != null ? (
             <div className="errand-kv">
               <span className="muted">Amount</span>
-              <span>{formatNaira(displayAmount)}</span>
+              <span>{formatNaira(payableAmount ?? displayAmount)}</span>
             </div>
           ) : null}
           {errand.payment ? (
@@ -700,6 +782,11 @@ export function ErrandDetailPage() {
         <AcceptOfferPaymentModal
           errandId={validId}
           offer={payingOffer}
+          serviceFee={
+            errand.service_fee != null && Number.isFinite(Number(errand.service_fee))
+              ? Math.max(0, Number(errand.service_fee))
+              : 0
+          }
           onClose={() => setPayingOffer(null)}
           onPaid={() => setPayingOffer(null)}
         />
