@@ -319,6 +319,13 @@ export function formatNaira(amount: number | null | undefined): string {
   })}`;
 }
 
+export function formatNairaWhole(amount: number | null | undefined): string {
+  if (amount == null || Number.isNaN(Number(amount))) return "—";
+  return `₦${Number(amount).toLocaleString("en-NG", {
+    maximumFractionDigits: 0,
+  })}`;
+}
+
 function positiveAmount(value: number | null | undefined): number | null {
   if (value == null) return null;
   const amount = Number(value);

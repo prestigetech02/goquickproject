@@ -7,7 +7,8 @@ import { logout } from "../lib/authApi";
 import { config } from "../lib/config";
 import { getApiErrorMessage } from "../lib/http";
 import { useProfileQuery, useSupportTicketsUnreadCountQuery, useUploadProfilePictureMutation } from "../lib/queries";
-import { isProfileComplete } from "../types/api";
+import { isProfileComplete, referralReferrerBonus, referralRequesterDiscount } from "../types/api";
+import { formatNairaWhole } from "../types/errand";
 import { unreadCountLabel } from "../types/supportTicket";
 
 function initials(first?: string | null, last?: string | null) {
@@ -91,6 +92,8 @@ export function ProfilePage() {
   const profileDone = isProfileComplete(user ?? null);
   const referralCode = user?.referral?.referral_code?.trim() || "";
   const remainingDiscounts = user?.referral?.requester?.remaining_discounts ?? 0;
+  const referrerBonusLabel = formatNairaWhole(referralReferrerBonus(user?.referral));
+  const requesterDiscountLabel = formatNairaWhole(referralRequesterDiscount(user?.referral));
   const errorMessage =
     error instanceof Error ? error.message : error ? "Could not load profile." : null;
 
@@ -127,7 +130,7 @@ export function ProfilePage() {
 
   async function copyReferral() {
     if (!referralCode) return;
-    const text = `Use my GoQuick referral code ${referralCode} to get ₦500 off your first errand.`;
+    const text = `Use my GoQuick referral code ${referralCode} to get ${requesterDiscountLabel} off your first errand.`;
     try {
       await navigator.clipboard.writeText(text);
       setCopyDone(true);
@@ -209,7 +212,7 @@ export function ProfilePage() {
               <h2 className="profile-card-title">Invite &amp; earn</h2>
               <p className="muted profile-referral-copy">
                 {referralCode
-                  ? "Share your code with friends. Earn ₦1,000 when their first errand completes."
+                  ? `Share your code with friends. Earn ${referrerBonusLabel} when their first errand completes.`
                   : "We are generating your invite code…"}
               </p>
               {referralCode ? (
@@ -222,7 +225,7 @@ export function ProfilePage() {
               ) : null}
               {remainingDiscounts > 0 ? (
                 <p className="profile-bonus">
-                  You still have ₦500 off your first errand as a welcome bonus.
+                  You still have {requesterDiscountLabel} off your first errand as a welcome bonus.
                 </p>
               ) : null}
             </section>
@@ -236,10 +239,22 @@ export function ProfilePage() {
               subtitle="Name, address, and contact details"
             />
             <MenuLink
+              to="/profile/places"
+              title="Saved places"
+              subtitle="Home, office, market, and custom addresses"
+            />
+            <MenuLink
               to="/wallet"
               title="My Wallet"
               subtitle="Balance, top-ups, and transactions"
             />
+            {config.referralEnabled ? (
+              <MenuLink
+                to="/profile/referrals"
+                title="My Referrals"
+                subtitle="Invite friends and track rewards"
+              />
+            ) : null}
             <MenuLink
               to="/profile/security"
               title="Account & Security"

@@ -4037,6 +4037,108 @@ a.card-link:hover {
   margin: 6px 0 0;
 }
 
+.dash-location-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(100%, 420px);
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-ink, #14201a);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dash-location-bar:hover .dash-location-text {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dash-location-icon {
+  flex-shrink: 0;
+  color: var(--color-brand, #1a7a0a);
+  display: grid;
+  place-items: center;
+}
+
+.dash-location-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-location-chevron {
+  flex-shrink: 0;
+  color: var(--color-muted, #6b7c72);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.dash-location-error {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.default-address-sheet {
+  max-width: 440px;
+}
+
+.default-address-options {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.default-address-option {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--color-surface, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.default-address-option:hover:not(:disabled) {
+  border-color: rgba(26, 122, 10, 0.35);
+}
+
+.default-address-option.selected {
+  border-color: var(--color-brand, #1a7a0a);
+  background: #f3fbf6;
+}
+
+.default-address-option:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.default-address-option-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink, #14201a);
+}
+
+.default-address-option-sub {
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dash-types {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4979,6 +5081,73 @@ a.card-link:hover {
   background: #fff;
   color: #1a7a0a;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.saved-place-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.saved-place-chip {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.saved-place-chip:hover:not(:disabled) {
+  border-color: #1a7a0a;
+  color: #1a7a0a;
+}
+
+.saved-place-chip.selected {
+  background: #1a7a0a;
+  color: #fff;
+  border-color: #1a7a0a;
+}
+
+.saved-place-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.saved-places-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.saved-place-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.saved-place-row:last-child {
+  border-bottom: none;
+}
+
+.saved-place-row p {
+  margin: 4px 0 0;
+}
+
+.saved-place-row-actions,
+.saved-place-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .location-picker-link {

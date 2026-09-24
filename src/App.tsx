@@ -27,8 +27,9 @@ import { SupportTicketsPage } from "./pages/profile/SupportTicketsPage";
 import { NewSupportTicketPage } from "./pages/profile/NewSupportTicketPage";
 import { SupportTicketThreadPage } from "./pages/profile/SupportTicketThreadPage";
 import { NotificationSettingsPage } from "./pages/profile/NotificationSettingsPage";
-import { PaymentMethodsPage } from "./pages/profile/PaymentMethodsPage";
 import { PersonalInfoPage } from "./pages/profile/PersonalInfoPage";
+import { ReferralsPage } from "./pages/profile/ReferralsPage";
+import { SavedPlacesPage } from "./pages/profile/SavedPlacesPage";
 import { SetPasswordPage } from "./pages/SetPasswordPage";
 import { NewErrandPage } from "./pages/NewErrandPage";
 import { WalletPage } from "./pages/WalletPage";
@@ -73,9 +74,10 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />}>
             <Route index element={<ProfileSelectEmpty />} />
             <Route path="personal" element={<PersonalInfoPage />} />
+            <Route path="places" element={<SavedPlacesPage />} />
+            <Route path="referrals" element={<ReferralsPage />} />
             <Route path="security" element={<AccountSecurityPage />} />
             <Route path="notifications" element={<NotificationSettingsPage />} />
-            <Route path="payments" element={<PaymentMethodsPage />} />
             <Route path="help" element={<HelpSupportPage />} />
             <Route path="help/tickets" element={<SupportTicketsPage />} />
             <Route path="help/tickets/new" element={<NewSupportTicketPage />} />

@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CustomPinMap } from "./CustomPinMap";
+import { SavedPlaceChips } from "./SavedPlaceChips";
 import { ServiceZoneUnavailableModal } from "./ServiceZoneUnavailableModal";
 import { getApiErrorMessage } from "../lib/http";
 import {
@@ -11,6 +13,9 @@ import {
   type LocationPoint,
   type PlacePrediction,
 } from "../lib/placesApi";
+import { locationPointFromSavedPlace } from "../lib/savedPlacesApi";
+import { useSavedPlacesQuery } from "../lib/queries";
+import type { SavedPlace } from "../types/api";
 
 type Props = {
   title: string;
@@ -18,6 +23,7 @@ type Props = {
   onSelect: (point: LocationPoint) => void;
   /** Called if details fail after an optimistic select (modal already closed). */
   onSelectFailed?: (message: string) => void;
+  showSavedPlaces?: boolean;
 };
 
 type UserCoords = { latitude: number; longitude: number };
@@ -33,11 +39,19 @@ function predictionAddress(prediction: PlacePrediction): string {
   return prediction.description;
 }
 
-export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }: Props) {
+export function LocationPickerModal({
+  title,
+  onClose,
+  onSelect,
+  onSelectFailed,
+  showSavedPlaces = true,
+}: Props) {
+  const navigate = useNavigate();
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionTokenRef = useRef(createPlacesSessionToken());
   const pickingRef = useRef(false);
+  const { data: savedPlaces = [] } = useSavedPlacesQuery();
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
@@ -145,6 +159,22 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
       onSelectFailed?.(getApiErrorMessage(err, "Could not verify service area"));
       return false;
     }
+  }
+
+  function handleSavedPlace(place: SavedPlace) {
+    if (pickingRef.current) return;
+    pickingRef.current = true;
+    void (async () => {
+      try {
+        const ok = await ensureServiceable(place.latitude, place.longitude);
+        if (!ok) return;
+        onSelect(locationPointFromSavedPlace(place));
+      } catch (err) {
+        onSelectFailed?.(getApiErrorMessage(err, "Could not use that location"));
+      } finally {
+        pickingRef.current = false;
+      }
+    })();
   }
 
   function handlePick(prediction: PlacePrediction) {
@@ -281,6 +311,17 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
 
         {mode === "search" ? (
           <>
+            {showSavedPlaces ? (
+              <SavedPlaceChips
+                places={savedPlaces}
+                onSelect={handleSavedPlace}
+                onManage={() => {
+                  onClose();
+                  navigate("/profile/places");
+                }}
+              />
+            ) : null}
+
             <label className="location-picker-search">
               <span className="sr-only">Search address</span>
               <input
@@ -306,12 +347,32 @@ export function LocationPickerModal({ title, onClose, onSelect, onSelectFailed }
                 </p>
               ) : null}
               {!loading && query.trim().length < 2 ? (
-                <p className="muted location-picker-hint">
-                  Try a place name, street, landmark, or address. Can&apos;t find it?{" "}
-                  <button type="button" className="location-picker-link" onClick={() => setMode("custom")}>
-                    Use custom address
-                  </button>
-                </p>
+                showSavedPlaces && savedPlaces.length > 0 ? (
+                  <ul className="location-picker-list">
+                    {savedPlaces.map((place) => (
+                      <li key={place.id}>
+                        <button
+                          type="button"
+                          className="location-picker-item"
+                          onClick={() => handleSavedPlace(place)}
+                        >
+                          <span className="location-picker-item-top">
+                            <span className="location-picker-main">{place.label}</span>
+                            <span className="location-picker-type">Saved</span>
+                          </span>
+                          <span className="location-picker-secondary muted">{place.address}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="muted location-picker-hint">
+                    Try a place name, street, landmark, or address. Can&apos;t find it?{" "}
+                    <button type="button" className="location-picker-link" onClick={() => setMode("custom")}>
+                      Use custom address
+                    </button>
+                  </p>
+                )
               ) : null}
               <ul className="location-picker-list">
                 {predictions.map((p) => {

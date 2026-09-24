@@ -8,8 +8,8 @@ export const config = {
   landingUrl: import.meta.env.VITE_LANDING_URL || "https://goquickapp.com.ng",
   supportEmail: import.meta.env.VITE_SUPPORT_EMAIL || "support@goquickapp.com.ng",
   whatsAppUrl: import.meta.env.VITE_SUPPORT_WHATSAPP_URL || "https://wa.me/2349069063200",
-  /** Set true to restore Invite & earn, referral codes, and related UI. */
-  referralEnabled: false,
+  /** Invite & earn, referral codes, and related UI. */
+  referralEnabled: true,
   /** Public Mapbox token for Mapbox GL JS (tiles only — never use the secret token here). */
   mapboxAccessToken: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || "",
   /** `pusher` (Pusher.com) or `reverb` (self-hosted Laravel Reverb). Must match backend BROADCAST_CONNECTION. */

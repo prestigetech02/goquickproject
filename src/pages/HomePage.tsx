@@ -1,14 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { DefaultAddressSheet } from "../components/DefaultAddressSheet";
+import { LocationPickerModal } from "../components/LocationPickerModal";
 import { formatDate } from "../lib/datetime";
+import {
+  defaultAddressDisplayLabel,
+  detectCurrentDefaultAddress,
+  loadDefaultAddress,
+  saveDefaultAddress,
+  type DefaultAddress,
+} from "../lib/defaultAddress";
 import { formatErrandCode } from "../lib/publicId";
 import {
   useActiveErrandsPreviewQuery,
   useErrandStatsQuery,
   useProfileQuery,
+  useSavedPlacesQuery,
   useWalletQuery,
 } from "../lib/queries";
 import { getStoredUser } from "../lib/auth";
+import type { LocationPoint } from "../lib/placesApi";
 import { isProfileComplete } from "../types/api";
 import {
   errandStatusLabel,
@@ -97,6 +108,7 @@ export function HomePage() {
   const walletQ = useWalletQuery();
   const statsQ = useErrandStatsQuery();
   const activeQ = useActiveErrandsPreviewQuery(3);
+  const { data: savedPlaces = [] } = useSavedPlacesQuery();
 
   const [hideBalance, setHideBalance] = useState(() => {
     try {
@@ -105,6 +117,13 @@ export function HomePage() {
       return false;
     }
   });
+  const [defaultAddress, setDefaultAddress] = useState<DefaultAddress | null>(() =>
+    loadDefaultAddress(),
+  );
+  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [addressPickerOpen, setAddressPickerOpen] = useState(false);
+  const [detectingAddress, setDetectingAddress] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -113,6 +132,48 @@ export function HomePage() {
       /* ignore */
     }
   }, [hideBalance]);
+
+  useEffect(() => {
+    if (defaultAddress) return;
+    let cancelled = false;
+    setDetectingAddress(true);
+    void detectCurrentDefaultAddress()
+      .then((addr) => {
+        if (cancelled) return;
+        saveDefaultAddress(addr);
+        setDefaultAddress(addr);
+      })
+      .catch(() => {
+        /* leave as Set your address */
+      })
+      .finally(() => {
+        if (!cancelled) setDetectingAddress(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultAddress]);
+
+  function commitDefault(addr: DefaultAddress) {
+    saveDefaultAddress(addr);
+    setDefaultAddress(addr);
+    setAddressError(null);
+    setAddressSheetOpen(false);
+    setAddressPickerOpen(false);
+  }
+
+  async function handleSelectCurrentLocation() {
+    setDetectingAddress(true);
+    setAddressError(null);
+    try {
+      const addr = await detectCurrentDefaultAddress();
+      commitDefault(addr);
+    } catch {
+      setAddressError("Could not get your current location.");
+    } finally {
+      setDetectingAddress(false);
+    }
+  }
 
   function handleNewErrand(type?: string) {
     if (!profileDone) {
@@ -133,6 +194,10 @@ export function HomePage() {
   const completedCount = statsQ.data?.completed_count;
   const totalSpent = statsQ.data?.total_spent ?? 0;
   const activeErrands = activeQ.data ?? [];
+  const locationLabel =
+    detectingAddress && !defaultAddress
+      ? "Detecting location…"
+      : defaultAddressDisplayLabel(defaultAddress);
 
   return (
     <div className="page dash-page">
@@ -152,6 +217,31 @@ export function HomePage() {
         <div>
           <h1 className="dash-greeting">{first ? `Hi, ${first}` : "Welcome"}</h1>
           <p className="muted dash-sub">What do you need help with today?</p>
+          <button
+            type="button"
+            className="dash-location-bar"
+            onClick={() => {
+              setAddressError(null);
+              setAddressSheetOpen(true);
+            }}
+            aria-label={`Delivery address: ${locationLabel}. Change address`}
+          >
+            <span className="dash-location-icon" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 21s7-4.5 7-11a7 7 0 10-14 0c0 6.5 7 11 7 11z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+                <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+              </svg>
+            </span>
+            <span className="dash-location-text">{locationLabel}</span>
+            <span className="dash-location-chevron" aria-hidden>
+              ▾
+            </span>
+          </button>
         </div>
       </header>
 
@@ -306,6 +396,58 @@ export function HomePage() {
           </div>
         )}
       </section>
+
+      {addressSheetOpen ? (
+        <DefaultAddressSheet
+          current={defaultAddress}
+          places={savedPlaces}
+          detecting={detectingAddress}
+          onClose={() => setAddressSheetOpen(false)}
+          onSelectCurrent={() => void handleSelectCurrentLocation()}
+          onSelectPlace={(place) =>
+            commitDefault({
+              kind: "place",
+              placeId: place.id,
+              label: place.label,
+              address: place.address,
+              latitude: place.latitude,
+              longitude: place.longitude,
+            })
+          }
+          onSearch={() => {
+            setAddressSheetOpen(false);
+            setAddressPickerOpen(true);
+          }}
+          onManagePlaces={() => {
+            setAddressSheetOpen(false);
+            navigate("/profile/places");
+          }}
+        />
+      ) : null}
+
+      {addressPickerOpen ? (
+        <LocationPickerModal
+          title="Set your address"
+          onClose={() => setAddressPickerOpen(false)}
+          onSelect={(point: LocationPoint) => {
+            if (point.resolving) return;
+            commitDefault({
+              kind: "custom",
+              address: point.address,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              placeId: point.placeId,
+            });
+          }}
+          onSelectFailed={(message) => setAddressError(message)}
+        />
+      ) : null}
+
+      {addressError ? (
+        <p className="error dash-location-error" role="alert">
+          {addressError}
+        </p>
+      ) : null}
     </div>
   );
 }

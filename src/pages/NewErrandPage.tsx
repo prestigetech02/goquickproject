@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrandCreatedModal } from "../components/ErrandCreatedModal";
 import { CouponPriceBreakdown } from "../components/CouponPriceBreakdown";
 import { LocationPickerModal } from "../components/LocationPickerModal";
+import { SavedPlaceChips } from "../components/SavedPlaceChips";
 import {
   PaymentMethodOptions,
   type ErrandPayMethod,
@@ -26,10 +27,13 @@ import {
   useErrandTypeSchemasQuery,
   useFundWalletMutation,
   useProfileQuery,
+  useSavedPlacesQuery,
   useVerifyWalletFundingMutation,
   useWalletQuery,
 } from "../lib/queries";
 import type { LocationPoint } from "../lib/placesApi";
+import { locationPointFromDefault, loadDefaultAddress } from "../lib/defaultAddress";
+import { locationPointFromSavedPlace, matchingSavedPlaceId } from "../lib/savedPlacesApi";
 import { isProfileComplete } from "../types/api";
 import { formatNaira, type CouponPreview } from "../types/errand";
 
@@ -181,6 +185,7 @@ export function NewErrandPage() {
   const create = useCreateErrandMutation();
   const walletQ = useWalletQuery();
   const { data: profile } = useProfileQuery();
+  const { data: savedPlaces = [] } = useSavedPlacesQuery();
   const fundWallet = useFundWalletMutation();
   const verifyFunding = useVerifyWalletFundingMutation();
 
@@ -193,7 +198,10 @@ export function NewErrandPage() {
 
   const [category, setCategory] = useState(initialType);
   const [pickup, setPickup] = useState<LocationPoint | null>(null);
-  const [dropoff, setDropoff] = useState<LocationPoint | null>(null);
+  const [dropoff, setDropoff] = useState<LocationPoint | null>(() => {
+    const saved = loadDefaultAddress();
+    return saved ? locationPointFromDefault(saved) : null;
+  });
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
   const [timing, setTiming] = useState<"asap" | "scheduled">("asap");
@@ -648,31 +656,46 @@ export function NewErrandPage() {
 
         <section className="card stack">
           <h2 className="profile-card-title">Locations</h2>
-          <button
-            type="button"
-            className="location-field-btn"
-            onClick={() => setPicker("pickup")}
-          >
-            <span className="muted">{pickupLabel(category)}</span>
-            <strong>
-              {pickup?.address || "Choose location"}
-              {pickup?.resolving ? "…" : ""}
-              {pickup?.isCustom && !pickup.resolving ? " (custom)" : ""}
-            </strong>
-          </button>
-          {showDropoff ? (
+          <div className="stack">
+            <SavedPlaceChips
+              places={savedPlaces}
+              selectedId={matchingSavedPlaceId(pickup, savedPlaces)}
+              onSelect={(place) => setPickup(locationPointFromSavedPlace(place))}
+              onManage={() => navigate("/profile/places")}
+            />
             <button
               type="button"
               className="location-field-btn"
-              onClick={() => setPicker("dropoff")}
+              onClick={() => setPicker("pickup")}
             >
-              <span className="muted">{dropoffLabel(category)}</span>
+              <span className="muted">{pickupLabel(category)}</span>
               <strong>
-                {dropoff?.address || "Choose location"}
-                {dropoff?.resolving ? "…" : ""}
-                {dropoff?.isCustom && !dropoff.resolving ? " (custom)" : ""}
+                {pickup?.address || "Choose location"}
+                {pickup?.resolving ? "…" : ""}
+                {pickup?.isCustom && !pickup.resolving ? " (custom)" : ""}
               </strong>
             </button>
+          </div>
+          {showDropoff ? (
+            <div className="stack">
+              <SavedPlaceChips
+                places={savedPlaces}
+                selectedId={matchingSavedPlaceId(dropoff, savedPlaces)}
+                onSelect={(place) => setDropoff(locationPointFromSavedPlace(place))}
+              />
+              <button
+                type="button"
+                className="location-field-btn"
+                onClick={() => setPicker("dropoff")}
+              >
+                <span className="muted">{dropoffLabel(category)}</span>
+                <strong>
+                  {dropoff?.address || "Choose location"}
+                  {dropoff?.resolving ? "…" : ""}
+                  {dropoff?.isCustom && !dropoff.resolving ? " (custom)" : ""}
+                </strong>
+              </button>
+            </div>
           ) : null}
         </section>
 

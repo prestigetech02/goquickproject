@@ -19,6 +19,15 @@ export type NotificationSettings = {
   promotions: boolean;
 };
 
+export type SavedPlace = {
+  id: string;
+  label: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  place_id?: string | null;
+};
+
 export type UserReferral = {
   referral_code?: string | null;
   requester?: {
@@ -33,7 +42,21 @@ export type UserReferral = {
     referred_requesters?: number;
     referred_runners?: number;
   };
+  rewards?: {
+    requester_discount_amount?: number;
+    referrer_bonus_amount?: number;
+  };
 };
+
+export function referralReferrerBonus(referral?: UserReferral | null, fallback = 1000): number {
+  const amount = Number(referral?.rewards?.referrer_bonus_amount);
+  return Number.isFinite(amount) && amount > 0 ? amount : fallback;
+}
+
+export function referralRequesterDiscount(referral?: UserReferral | null, fallback = 500): number {
+  const amount = Number(referral?.rewards?.requester_discount_amount);
+  return Number.isFinite(amount) && amount > 0 ? amount : fallback;
+}
 
 export type User = {
   id: number;
@@ -52,6 +75,7 @@ export type User = {
   has_password?: boolean;
   notification_settings?: NotificationSettings;
   referral?: UserReferral;
+  saved_places?: SavedPlace[];
 };
 
 export type AuthPayload = {

@@ -94,3 +94,35 @@ export async function deleteAccount(password: string, reason?: string) {
   });
   return data;
 }
+
+export type ReferralHistoryItem = {
+  user_name?: string;
+  created_at?: string;
+  reward_label?: string;
+};
+
+export type ReferralStatsPoint = {
+  label?: string;
+  value?: number;
+};
+
+export type ReferralData = {
+  referral_code?: string | null;
+  history?: ReferralHistoryItem[];
+  stats?: ReferralStatsPoint[];
+  totals?: {
+    referred_requesters?: number;
+    referred_runners?: number;
+  };
+  rewards?: {
+    requester_discount_amount?: number;
+    referrer_bonus_amount?: number;
+  };
+};
+
+export async function fetchReferral(days = 7) {
+  const { data } = await http.get<ApiResponse<ReferralData>>("/user/referral", {
+    params: { days },
+  });
+  return data;
+}

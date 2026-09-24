@@ -22,23 +22,42 @@ export function AboutPage() {
           <span className="muted">Support</span>
           <a href="mailto:support@goquickapp.com.ng">support@goquickapp.com.ng</a>
         </div>
-        <div className="profile-kv">
-          <span className="muted">Android</span>
-          <a href={config.playStoreUrl} target="_blank" rel="noreferrer">
-            Google Play
-          </a>
-        </div>
-        <div className="profile-kv">
-          <span className="muted">iOS</span>
-          <a href={config.appStoreUrl} target="_blank" rel="noreferrer">
-            App Store
-          </a>
-        </div>
 
         <p className="muted" style={{ fontSize: "0.85rem", marginTop: 8 }}>
           © {new Date().getFullYear()} GoQuick. All rights reserved.
         </p>
       </section>
+
+      <nav className="card profile-menu" aria-label="Legal">
+        <a
+          className="profile-menu-item"
+          href={`${config.landingUrl}/privacy`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span className="profile-menu-text">
+            <span className="profile-menu-title">Privacy Policy</span>
+            <span className="profile-menu-sub">How we protect your data</span>
+          </span>
+          <span className="profile-menu-chevron" aria-hidden>
+            ›
+          </span>
+        </a>
+        <a
+          className="profile-menu-item"
+          href={`${config.landingUrl}/terms`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span className="profile-menu-text">
+            <span className="profile-menu-title">Terms of Service</span>
+            <span className="profile-menu-sub">Rules for using GoQuick</span>
+          </span>
+          <span className="profile-menu-chevron" aria-hidden>
+            ›
+          </span>
+        </a>
+      </nav>
     </div>
   );
 }

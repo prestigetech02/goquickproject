@@ -6,11 +6,13 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { fetchProfile } from "./authApi";
+import { config } from "./config";
 import {
   changePassword,
   deactivateAccount,
   deleteAccount,
   fetchNotificationSettings,
+  fetchReferral,
   updateNotificationSettings,
   updateProfile,
   uploadProfilePicture,
@@ -58,11 +60,18 @@ import {
   fetchSupportTickets,
   replySupportTicket,
 } from "./supportTicketApi";
+import {
+  createSavedPlace,
+  deleteSavedPlace,
+  fetchSavedPlaces,
+  updateSavedPlace,
+  type SavedPlacePayload,
+} from "./savedPlacesApi";
 import { getStoredUser, setStoredUser } from "./auth";
 import { queryKeys } from "./queryClient";
 import { insertCreatedErrand } from "./errandCache";
 import { removeOptimisticMessage, removeThreadFromChats, setThreadUnread, upsertChatMessage } from "./chatCache";
-import type { NotificationSettings, User } from "../types/api";
+import type { NotificationSettings, SavedPlace, User } from "../types/api";
 import type { NotificationListResult } from "./notificationApi";
 import type { AppNotification } from "../types/notification";
 import type {
@@ -96,6 +105,22 @@ export function useProfileQuery() {
     initialData: () => getStoredUser() ?? undefined,
     initialDataUpdatedAt: 0,
     // Always reconcile with /user/profile so login payloads missing fields don't stick.
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useReferralQuery() {
+  return useQuery({
+    queryKey: queryKeys.referral,
+    queryFn: async () => {
+      const res = await fetchReferral();
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load referrals");
+      }
+      return res.data;
+    },
+    enabled: config.referralEnabled,
     staleTime: 0,
     refetchOnMount: "always",
   });
@@ -194,6 +219,75 @@ export function useUpdateNotificationSettingsMutation() {
         setStoredUser(merged);
         qc.setQueryData(queryKeys.profile, merged);
       }
+    },
+  });
+}
+
+export function useSavedPlacesQuery() {
+  return useQuery({
+    queryKey: queryKeys.savedPlaces,
+    queryFn: async () => {
+      const res = await fetchSavedPlaces();
+      if (!res.success) {
+        throw new Error(res.error?.message ?? "Failed to load saved places");
+      }
+      return res.data?.places ?? [];
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useCreateSavedPlaceMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: SavedPlacePayload) => {
+      const res = await createSavedPlace(payload);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to save place");
+      }
+      return res.data.places ?? [];
+    },
+    onSuccess: (places: SavedPlace[]) => {
+      qc.setQueryData(queryKeys.savedPlaces, places);
+    },
+  });
+}
+
+export function useUpdateSavedPlaceMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Partial<SavedPlacePayload>;
+    }) => {
+      const res = await updateSavedPlace(id, payload);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to update place");
+      }
+      return res.data.places ?? [];
+    },
+    onSuccess: (places: SavedPlace[]) => {
+      qc.setQueryData(queryKeys.savedPlaces, places);
+    },
+  });
+}
+
+export function useDeleteSavedPlaceMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await deleteSavedPlace(id);
+      if (!res.success) {
+        throw new Error(res.error?.message ?? "Failed to remove place");
+      }
+      return res.data?.places ?? [];
+    },
+    onSuccess: (places: SavedPlace[]) => {
+      qc.setQueryData(queryKeys.savedPlaces, places);
     },
   });
 }

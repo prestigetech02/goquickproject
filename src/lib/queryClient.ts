@@ -38,4 +38,6 @@ export const queryKeys = {
   supportTicketsUnread: ["support-tickets", "unread-count"] as const,
   supportTicket: (id: number) => ["support-tickets", "detail", id] as const,
   publicConfig: ["public-config"] as const,
+  savedPlaces: ["profile", "saved-places"] as const,
+  referral: ["profile", "referral"] as const,
 };
