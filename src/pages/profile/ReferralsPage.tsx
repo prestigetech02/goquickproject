@@ -35,10 +35,20 @@ export function ReferralsPage() {
     Number(data?.rewards?.requester_discount_amount) ||
       referralRequesterDiscount(user?.referral),
   );
+  const screenMessage =
+    data?.copy?.screen_message?.trim() ||
+    user?.referral?.copy?.screen_message?.trim() ||
+    "";
+  const shareMessage =
+    data?.copy?.share_message?.trim() ||
+    user?.referral?.copy?.share_message?.trim() ||
+    "";
 
   async function copyReferral() {
     if (!code) return;
-    const text = `Use my GoQuick referral code ${code} to get ${requesterDiscountLabel} off your first errand.`;
+    const text =
+      shareMessage ||
+      `Use my GoQuick referral code ${code} to get ${requesterDiscountLabel} off your first errand.`;
     try {
       await navigator.clipboard.writeText(text);
       setCopyDone(true);
@@ -66,7 +76,8 @@ export function ReferralsPage() {
         <h2 className="profile-card-title">Invite &amp; earn</h2>
         <p className="muted profile-referral-copy">
           {code
-            ? `Share your code with friends. Earn ${referrerBonusLabel} when their first errand completes.`
+            ? screenMessage ||
+              `Share your code with friends. Earn ${referrerBonusLabel} when their first errand completes.`
             : "We are generating your invite code…"}
         </p>
         {code ? (

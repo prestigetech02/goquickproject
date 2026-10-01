@@ -4671,9 +4671,73 @@ a.card-link:hover {
   align-self: center;
 }
 
-.wallet-fund-modal {
-  width: min(440px, 100%);
+.wallet-fund-modal,
+.wallet-withdraw-modal {
+  width: min(480px, 100%);
+  max-height: min(92dvh, 820px);
+  overflow: auto;
 }
+
+.wallet-bank-field {
+  position: relative;
+}
+
+.wallet-bank-suggestions {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.wallet-bank-suggestions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.wallet-bank-suggestions button:hover,
+.wallet-bank-suggestions button[aria-selected="true"] {
+  background: rgba(26, 122, 10, 0.08);
+}
+
+.wallet-withdraw-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: rgba(26, 122, 10, 0.03);
+}
+
+.wallet-withdraw-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.wallet-withdraw-row span {
+  color: var(--color-muted);
+}
+
 
 .wallet-fund-copy {
   margin: 0 0 14px;

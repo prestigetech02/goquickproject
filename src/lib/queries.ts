@@ -51,7 +51,18 @@ import {
   submitErrandReview,
   type CreateErrandPayload,
 } from "./errandApi";
-import { fetchWallet, fetchWalletTransactions, fundWallet, verifyWalletFunding, type WalletInfo } from "./walletApi";
+import {
+  fetchBanks,
+  fetchPayoutAccount,
+  fetchWallet,
+  fetchWalletTransactions,
+  fetchWithdrawals,
+  fundWallet,
+  requestWithdrawal,
+  resolvePayoutAccount,
+  verifyWalletFunding,
+  type WalletInfo,
+} from "./walletApi";
 import {
   createSupportTicket,
   fetchPublicSupportConfig,
@@ -947,6 +958,85 @@ export function useVerifyWalletFundingMutation() {
       );
       void qc.invalidateQueries({ queryKey: queryKeys.wallet });
       void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions });
+    },
+  });
+}
+
+export function useWalletBanksQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.walletBanks,
+    enabled,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const res = await fetchBanks();
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load banks");
+      }
+      return res.data;
+    },
+  });
+}
+
+export function usePayoutAccountQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.walletPayoutAccount,
+    enabled,
+    queryFn: async () => {
+      const res = await fetchPayoutAccount();
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load payout account");
+      }
+      return res.data;
+    },
+  });
+}
+
+export function useWithdrawalsQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.walletWithdrawals,
+    enabled,
+    queryFn: async () => {
+      const res = await fetchWithdrawals({ perPage: 8 });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load withdrawals");
+      }
+      return res.data.withdrawals;
+    },
+  });
+}
+
+export function useRequestWithdrawalMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { amount: number; bankCode: string; accountNumber: string }) => {
+      const res = await requestWithdrawal(payload);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Could not request withdrawal");
+      }
+      return res.data;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.wallet, (prev: WalletInfo | undefined) =>
+        prev
+          ? { ...prev, balance: Number(data.wallet_balance) }
+          : { id: 0, balance: Number(data.wallet_balance), currency: "NGN" },
+      );
+      void qc.invalidateQueries({ queryKey: queryKeys.wallet });
+      void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions });
+      void qc.invalidateQueries({ queryKey: queryKeys.walletWithdrawals });
+      void qc.invalidateQueries({ queryKey: queryKeys.walletPayoutAccount });
+    },
+  });
+}
+
+export function useResolvePayoutAccountMutation() {
+  return useMutation({
+    mutationFn: async (payload: { bankCode: string; accountNumber: string }) => {
+      const res = await resolvePayoutAccount(payload);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Could not verify that account");
+      }
+      return res.data;
     },
   });
 }

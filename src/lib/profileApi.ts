@@ -118,6 +118,10 @@ export type ReferralData = {
     requester_discount_amount?: number;
     referrer_bonus_amount?: number;
   };
+  copy?: {
+    screen_message?: string;
+    share_message?: string;
+  };
 };
 
 export async function fetchReferral(days = 7) {

@@ -1,4 +1,4 @@
-export type ErrandStatusFilter = "all" | "active" | "completed" | "cancelled";
+export type ErrandStatusFilter = "all" | "active" | "draft" | "completed" | "cancelled";
 
 export type ErrandRunner = {
   id: number;
@@ -88,6 +88,8 @@ export type Errand = {
   title: string;
   description?: string | null;
   category?: string | null;
+  type?: string | null;
+  scheduled_at?: string | null;
   status: string;
   budget_min?: number | null;
   budget_max?: number | null;
@@ -160,6 +162,7 @@ export function isLocationCompletionCategory(category?: string | null): boolean 
 
 export function errandStatusLabel(status: string, category?: string | null): string {
   const s = status.toLowerCase();
+  if (s === "draft") return "Draft";
   const cat = (category ?? "").toLowerCase();
   if (isLocationCompletionCategory(cat)) {
     switch (s) {

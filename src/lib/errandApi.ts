@@ -225,9 +225,10 @@ export type CreateErrandPayload = {
   scheduled_at?: string | null;
   budget_min?: number | null;
   budget_max?: number | null;
-  pickup_address: string;
-  pickup_latitude: number;
-  pickup_longitude: number;
+  pickup_address?: string | null;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
+  as_draft?: boolean;
   dropoff_address?: string | null;
   dropoff_latitude?: number | null;
   dropoff_longitude?: number | null;
@@ -314,6 +315,7 @@ function appendCreateErrandFormData(payload: CreateErrandPayload): FormData {
     ["dropoff_longitude", payload.dropoff_longitude],
     ["estimated_stops", payload.estimated_stops],
     ["coupon_code", payload.coupon_code],
+    ["as_draft", payload.as_draft ? 1 : undefined],
   ];
 
   for (const [key, value] of scalarEntries) {
@@ -335,18 +337,19 @@ function appendCreateErrandFormData(payload: CreateErrandPayload): FormData {
   return form;
 }
 
-export async function createErrand(payload: CreateErrandPayload) {
+export async function createErrand(payload: CreateErrandPayload, path = "/errands") {
   try {
     const hasFiles = (payload.attachments?.length ?? 0) > 0;
     const { data } = hasFiles
       ? await http.post<ApiResponse<CreateErrandResult>>(
-          "/errands",
+          path,
           appendCreateErrandFormData(payload),
           { headers: { "Content-Type": "multipart/form-data" } },
         )
-      : await http.post<ApiResponse<CreateErrandResult>>("/errands", {
+      : await http.post<ApiResponse<CreateErrandResult>>(path, {
           ...payload,
           attachments: undefined,
+          as_draft: payload.as_draft || undefined,
           coupon_code: payload.coupon_code?.trim() || undefined,
         });
 
@@ -380,6 +383,56 @@ export async function createErrand(payload: CreateErrandPayload) {
       },
     };
   }
+}
+
+export async function saveErrandDraft(payload: CreateErrandPayload, errandId?: number) {
+  const draft = { ...payload, as_draft: true, coupon_code: undefined };
+  if (!errandId) {
+    return createErrand(draft);
+  }
+
+  const hasFiles = (draft.attachments?.length ?? 0) > 0;
+  try {
+    const { data } = hasFiles
+      ? await http.post<ApiResponse<CreateErrandResult>>(
+          `/errands/${errandId}/draft`,
+          (() => {
+            const form = appendCreateErrandFormData(draft);
+            form.append("_method", "PUT");
+            return form;
+          })(),
+          { headers: { "Content-Type": "multipart/form-data" } },
+        )
+      : await http.put<ApiResponse<CreateErrandResult>>(`/errands/${errandId}/draft`, {
+          ...draft,
+          attachments: undefined,
+          as_draft: undefined,
+        });
+
+    if (!data.success || !data.data?.errand) {
+      return {
+        success: false as const,
+        data: null,
+        error: data.error ?? { message: "Failed to save draft", code: undefined as string | undefined },
+      };
+    }
+    return { success: true as const, data: data.data, message: data.message };
+  } catch (err: unknown) {
+    const ax = err as { response?: { data?: ApiResponse<unknown> } };
+    const body = ax.response?.data;
+    return {
+      success: false as const,
+      data: null,
+      error: {
+        message: body?.error?.message ?? "Failed to save draft",
+        code: body?.error?.code,
+      },
+    };
+  }
+}
+
+export async function publishErrand(errandId: number, payload: CreateErrandPayload) {
+  return createErrand({ ...payload, as_draft: false }, `/errands/${errandId}/publish`);
 }
 
 export async function acceptErrandCompletion(errandId: number) {

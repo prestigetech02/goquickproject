@@ -46,6 +46,10 @@ export type UserReferral = {
     requester_discount_amount?: number;
     referrer_bonus_amount?: number;
   };
+  copy?: {
+    screen_message?: string;
+    share_message?: string;
+  };
 };
 
 export function referralReferrerBonus(referral?: UserReferral | null, fallback = 1000): number {

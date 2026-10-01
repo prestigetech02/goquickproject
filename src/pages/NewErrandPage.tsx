@@ -12,7 +12,11 @@ import { useToast } from "../components/ToastProvider";
 import { getStoredUser } from "../lib/auth";
 import {
   estimateErrand,
+  fetchErrand,
   previewCoupon,
+  publishErrand,
+  saveErrandDraft,
+  type CreateErrandPayload,
   type CreateErrandResult,
   type ErrandEstimate,
   type ErrandTypeSchema,
@@ -34,6 +38,7 @@ import {
 import type { LocationPoint } from "../lib/placesApi";
 import { locationPointFromDefault, loadDefaultAddress } from "../lib/defaultAddress";
 import { locationPointFromSavedPlace, matchingSavedPlaceId } from "../lib/savedPlacesApi";
+import { queryClient } from "../lib/queryClient";
 import { isProfileComplete } from "../types/api";
 import { formatNaira, type CouponPreview } from "../types/errand";
 
@@ -220,7 +225,14 @@ export function NewErrandPage() {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [payMethod, setPayMethod] = useState<ErrandPayMethod>("wallet");
   const [paying, setPaying] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftId, setDraftId] = useState<number | null>(() => {
+    const raw = searchParams.get("draft");
+    const id = raw ? Number(raw) : NaN;
+    return Number.isFinite(id) && id > 0 ? id : null;
+  });
   const payMethodInited = useRef(false);
+  const draftLoaded = useRef(false);
   const fundReturnRef = useRef(false);
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -265,6 +277,52 @@ export function NewErrandPage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Paystack return URL
   }, []);
+
+  useEffect(() => {
+    if (!draftId || draftLoaded.current) return;
+    draftLoaded.current = true;
+    void (async () => {
+      const res = await fetchErrand(draftId);
+      if (!res.success || !res.data || res.data.status !== "draft") {
+        toast.error("That draft is no longer available.");
+        setDraftId(null);
+        return;
+      }
+      const errand = res.data;
+      if (errand.category) setCategory(errand.category);
+      setDescription(errand.description ?? "");
+      const meta = errand.metadata ?? {};
+      if (typeof meta.instructions === "string") setInstructions(meta.instructions);
+      if (meta.expected_wait_minutes != null) setWaitMinutes(String(meta.expected_wait_minutes));
+      if (errand.pickup_address && errand.pickup_latitude != null && errand.pickup_longitude != null) {
+        setPickup({
+          address: errand.pickup_address,
+          latitude: errand.pickup_latitude,
+          longitude: errand.pickup_longitude,
+        });
+      }
+      if (errand.dropoff_address && errand.dropoff_latitude != null && errand.dropoff_longitude != null) {
+        setDropoff({
+          address: errand.dropoff_address,
+          latitude: errand.dropoff_latitude,
+          longitude: errand.dropoff_longitude,
+        });
+      }
+      if (errand.type === "scheduled" && errand.scheduled_at) {
+        setTiming("scheduled");
+        const local = new Date(errand.scheduled_at);
+        if (!Number.isNaN(local.getTime())) {
+          const pad = (n: number) => String(n).padStart(2, "0");
+          setScheduledAt(
+            `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`,
+          );
+        }
+      }
+      if (errand.budget_max != null && errand.budget_max > 0) {
+        setOfferAmount(String(errand.budget_max));
+      }
+    })();
+  }, [draftId, toast]);
 
   useEffect(() => {
     return () => {
@@ -317,12 +375,13 @@ export function NewErrandPage() {
   }
 
   useEffect(() => {
+    if (draftId) return;
     if (types.some((t) => t.slug === initialType)) {
       setCategory(initialType);
     } else if (types[0]) {
       setCategory(types[0].slug);
     }
-  }, [types, initialType]);
+  }, [types, initialType, draftId]);
 
   const selectedType = types.find((t) => t.slug === category) ?? types[0];
   const showDropoff = needsDropoff(category);
@@ -500,28 +559,40 @@ export function NewErrandPage() {
     if (instructions.trim()) metadata.instructions = instructions.trim();
     if (category === "queue") metadata.expected_wait_minutes = Number(waitMinutes);
 
+    const payload: CreateErrandPayload = {
+      title: buildTitle(category, description, selectedType?.name ?? "Errand"),
+      description: description.trim() || null,
+      category,
+      type: timing === "scheduled" ? "scheduled" : "instant",
+      scheduled_at: timing === "scheduled" ? new Date(scheduledAt).toISOString() : null,
+      budget_min: offer,
+      budget_max: offer,
+      pickup_address: pickup.address,
+      pickup_latitude: pickup.latitude,
+      pickup_longitude: pickup.longitude,
+      dropoff_address: showDropoff ? dropoff?.address ?? null : null,
+      dropoff_latitude: showDropoff ? dropoff?.latitude ?? null : null,
+      dropoff_longitude: showDropoff ? dropoff?.longitude ?? null : null,
+      metadata: Object.keys(metadata).length ? metadata : null,
+      attachments:
+        pendingAttachments.length > 0 ? pendingAttachments.map((a) => a.file) : undefined,
+      coupon_code: couponPreview ? couponText : undefined,
+    };
+
     try {
-      const result = await create.mutateAsync({
-        title: buildTitle(category, description, selectedType?.name ?? "Errand"),
-        description: description.trim() || null,
-        category,
-        type: timing === "scheduled" ? "scheduled" : "instant",
-        scheduled_at: timing === "scheduled" ? new Date(scheduledAt).toISOString() : null,
-        budget_min: offer,
-        budget_max: offer,
-        pickup_address: pickup.address,
-        pickup_latitude: pickup.latitude,
-        pickup_longitude: pickup.longitude,
-        dropoff_address: showDropoff ? dropoff?.address ?? null : null,
-        dropoff_latitude: showDropoff ? dropoff?.latitude ?? null : null,
-        dropoff_longitude: showDropoff ? dropoff?.longitude ?? null : null,
-        metadata: Object.keys(metadata).length ? metadata : null,
-        attachments:
-          pendingAttachments.length > 0
-            ? pendingAttachments.map((a) => a.file)
-            : undefined,
-        coupon_code: couponPreview ? couponText : undefined,
-      });
+      const result = draftId
+        ? await publishErrand(draftId, payload).then((res) => {
+            if (!res.success || !res.data) {
+              const err = new Error(res.error?.message ?? "Could not post errand.") as Error & {
+                code?: string;
+              };
+              err.code = res.error?.code;
+              throw err;
+            }
+            void queryClient.invalidateQueries({ queryKey: ["errands"], refetchType: "all" });
+            return res.data;
+          })
+        : await create.mutateAsync(payload);
       setCreated(result);
     } catch (err) {
       const code = (err as Error & { code?: string }).code;
@@ -563,6 +634,48 @@ export function NewErrandPage() {
   const walletBalance = walletQ.data?.balance ?? null;
   const couponText = couponCode.trim();
   const couponBlocksSubmit = couponText.length > 0 && !couponPreview;
+  async function handleSaveDraft() {
+    const metadata: Record<string, unknown> = {};
+    if (instructions.trim()) metadata.instructions = instructions.trim();
+    if (category === "queue" && waitMinutes.trim()) {
+      metadata.expected_wait_minutes = Number(waitMinutes);
+    }
+    const offer = parseOfferAmount(offerAmount);
+    setSavingDraft(true);
+    const res = await saveErrandDraft(
+      {
+        title: buildTitle(category, description, selectedType?.name ?? "Errand"),
+        description: description.trim() || null,
+        category,
+        type: timing === "scheduled" ? "scheduled" : "instant",
+        scheduled_at:
+          timing === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        budget_min: offer,
+        budget_max: offer,
+        pickup_address: pickup?.address ?? null,
+        pickup_latitude: pickup && Number.isFinite(pickup.latitude) ? pickup.latitude : null,
+        pickup_longitude: pickup && Number.isFinite(pickup.longitude) ? pickup.longitude : null,
+        dropoff_address: showDropoff ? dropoff?.address ?? null : null,
+        dropoff_latitude:
+          showDropoff && dropoff && Number.isFinite(dropoff.latitude) ? dropoff.latitude : null,
+        dropoff_longitude:
+          showDropoff && dropoff && Number.isFinite(dropoff.longitude) ? dropoff.longitude : null,
+        metadata: Object.keys(metadata).length ? metadata : null,
+        attachments:
+          pendingAttachments.length > 0 ? pendingAttachments.map((item) => item.file) : undefined,
+      },
+      draftId ?? undefined,
+    );
+    setSavingDraft(false);
+    if (!res.success || !res.data) {
+      toast.error(res.error?.message ?? "Could not save draft.");
+      return;
+    }
+    toast.success("Draft saved. You can finish it later from Errands.");
+    void queryClient.invalidateQueries({ queryKey: ["errands"], refetchType: "all" });
+    navigate("/errands?status=draft");
+  }
+
   const canSubmit =
     !create.isPending &&
     !paying &&
@@ -630,7 +743,7 @@ export function NewErrandPage() {
           <Link to="/errands" className="profile-back">
             ← Back
           </Link>
-          <h1>New errand</h1>
+          <h1>{draftId ? "Continue draft" : "New errand"}</h1>
         </div>
       </div>
 
@@ -995,17 +1108,29 @@ export function NewErrandPage() {
           </section>
         ) : null}
 
-        <button type="submit" className="btn-primary" disabled={!canSubmit}>
-          {paying
-            ? "Opening Paystack…"
-            : create.isPending
-              ? "Creating…"
-              : payMethod === "card" &&
-                  chargeAmount != null &&
-                  shortfallToFund(chargeAmount, walletBalance ?? 0) > 0
-                ? `Pay ${formatNaira(chargeAmount)} & create`
-                : "Create errand"}
-        </button>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={savingDraft || create.isPending || paying}
+            onClick={() => void handleSaveDraft()}
+          >
+            {savingDraft ? "Saving draft…" : "Save draft"}
+          </button>
+          <button type="submit" className="btn-primary" disabled={!canSubmit || savingDraft}>
+            {paying
+              ? "Opening Paystack…"
+              : create.isPending
+                ? "Creating…"
+                : payMethod === "card" &&
+                    chargeAmount != null &&
+                    shortfallToFund(chargeAmount, walletBalance ?? 0) > 0
+                  ? `Pay ${formatNaira(chargeAmount)} & create`
+                  : draftId
+                    ? "Post errand"
+                    : "Create errand"}
+          </button>
+        </div>
       </form>
 
       {picker ? (

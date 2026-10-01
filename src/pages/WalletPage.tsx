@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { formatDateTime } from "../lib/datetime";
 import { getApiErrorMessage } from "../lib/http";
@@ -15,6 +15,7 @@ import {
   type WalletTransaction,
 } from "../lib/walletApi";
 import { FundWalletModal } from "../components/FundWalletModal";
+import { WithdrawModal } from "../components/WithdrawModal";
 import { useToast } from "../components/ToastProvider";
 import { WalletTransactionModal } from "../components/WalletTransactionModal";
 
@@ -44,55 +45,6 @@ function EyeIcon({ off }: { off?: boolean }) {
       />
       <circle cx="12" cy="12.5" r="3" stroke="currentColor" strokeWidth="1.8" />
     </svg>
-  );
-}
-
-function WithdrawInfoModal({ onClose }: { onClose: () => void }) {
-  const titleId = useId();
-  const okRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    okRef.current?.focus();
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <div
-        className="modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="notification-modal-header">
-          <h2 id={titleId} className="notification-modal-title" style={{ margin: 0 }}>
-            Withdrawals
-          </h2>
-          <button type="button" className="modal-close" aria-label="Close" onClick={onClose}>
-            ×
-          </button>
-        </div>
-        <p className="notification-modal-body">
-          Wallet withdrawals are available for runners earning from completed errands. As a
-          requester, you can fund your wallet and pay for errands here.
-        </p>
-        <div className="notification-modal-actions">
-          <button ref={okRef} type="button" className="btn-primary" onClick={onClose}>
-            Got it
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -281,7 +233,9 @@ export function WalletPage() {
       </section>
 
       {fundOpen ? <FundWalletModal onClose={() => setFundOpen(false)} /> : null}
-      {withdrawOpen ? <WithdrawInfoModal onClose={() => setWithdrawOpen(false)} /> : null}
+      {withdrawOpen ? (
+        <WithdrawModal balance={balance} onClose={() => setWithdrawOpen(false)} />
+      ) : null}
       {selectedTx ? (
         <WalletTransactionModal
           tx={selectedTx}

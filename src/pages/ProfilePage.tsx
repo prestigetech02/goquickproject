@@ -94,6 +94,8 @@ export function ProfilePage() {
   const remainingDiscounts = user?.referral?.requester?.remaining_discounts ?? 0;
   const referrerBonusLabel = formatNairaWhole(referralReferrerBonus(user?.referral));
   const requesterDiscountLabel = formatNairaWhole(referralRequesterDiscount(user?.referral));
+  const screenMessage = user?.referral?.copy?.screen_message?.trim() || "";
+  const shareMessage = user?.referral?.copy?.share_message?.trim() || "";
   const errorMessage =
     error instanceof Error ? error.message : error ? "Could not load profile." : null;
 
@@ -130,7 +132,9 @@ export function ProfilePage() {
 
   async function copyReferral() {
     if (!referralCode) return;
-    const text = `Use my GoQuick referral code ${referralCode} to get ${requesterDiscountLabel} off your first errand.`;
+    const text =
+      shareMessage ||
+      `Use my GoQuick referral code ${referralCode} to get ${requesterDiscountLabel} off your first errand.`;
     try {
       await navigator.clipboard.writeText(text);
       setCopyDone(true);
@@ -212,7 +216,8 @@ export function ProfilePage() {
               <h2 className="profile-card-title">Invite &amp; earn</h2>
               <p className="muted profile-referral-copy">
                 {referralCode
-                  ? `Share your code with friends. Earn ${referrerBonusLabel} when their first errand completes.`
+                  ? screenMessage ||
+                    `Share your code with friends. Earn ${referrerBonusLabel} when their first errand completes.`
                   : "We are generating your invite code…"}
               </p>
               {referralCode ? (

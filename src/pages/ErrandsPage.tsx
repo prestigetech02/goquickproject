@@ -15,6 +15,7 @@ import {
 
 const TABS: { id: ErrandStatusFilter; label: string }[] = [
   { id: "all", label: "All" },
+  { id: "draft", label: "Drafts" },
   { id: "active", label: "Active" },
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
@@ -111,6 +112,10 @@ export function ErrandsPage() {
   }
 
   function openErrand(errand: Errand) {
+    if (errand.status === "draft") {
+      navigate(`/errands/new?draft=${errand.id}`);
+      return;
+    }
     navigate(`/errands/${errand.id}${searchParams.toString() ? `?${searchParams}` : ""}`);
   }
 
