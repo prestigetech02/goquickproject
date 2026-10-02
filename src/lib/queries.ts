@@ -80,7 +80,7 @@ import {
 } from "./savedPlacesApi";
 import { getStoredUser, setStoredUser } from "./auth";
 import { queryKeys } from "./queryClient";
-import { insertCreatedErrand } from "./errandCache";
+import { insertCreatedErrand, refreshAllErrandQueries } from "./errandCache";
 import { removeOptimisticMessage, removeThreadFromChats, setThreadUnread, upsertChatMessage } from "./chatCache";
 import type { NotificationSettings, SavedPlace, User } from "../types/api";
 import type { NotificationListResult } from "./notificationApi";
@@ -981,6 +981,7 @@ export function usePayoutAccountQuery(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.walletPayoutAccount,
     enabled,
+    refetchOnMount: "always",
     queryFn: async () => {
       const res = await fetchPayoutAccount();
       if (!res.success || !res.data) {
@@ -1103,7 +1104,7 @@ export function useCreateErrandMutation() {
         attachments: data.attachments ?? data.errand.attachments ?? null,
       };
       insertCreatedErrand(qc, errand);
-      void qc.invalidateQueries({ queryKey: ["errands"], refetchType: "all" });
+      refreshAllErrandQueries(qc);
       void qc.invalidateQueries({ queryKey: queryKeys.wallet });
     },
   });

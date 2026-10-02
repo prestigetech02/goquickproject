@@ -78,6 +78,19 @@ function patchInfiniteList(
   return { ...old, pages };
 }
 
+/**
+ * Refetch every cached errand query, including screens not currently shown.
+ * Entries seeded with setQueryData have no fetcher until a screen uses them, and
+ * refetching those fails with "Missing queryFn", so they are left alone.
+ */
+export function refreshAllErrandQueries(qc: QueryClient) {
+  void qc.invalidateQueries({
+    queryKey: ["errands"],
+    refetchType: "all",
+    predicate: (query) => typeof query.options.queryFn === "function",
+  });
+}
+
 /** Put a newly created errand at the top of dashboard/list caches immediately. */
 export function insertCreatedErrand(qc: QueryClient, errand: Errand) {
   qc.setQueryData(queryKeys.errand(errand.id), (prev: Errand | undefined) =>

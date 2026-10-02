@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
-import { getApiErrorMessage } from "../lib/http";
+import { getApiErrorCode, getApiErrorMessage } from "../lib/http";
 import {
   usePayoutAccountQuery,
   useRequestWithdrawalMutation,
@@ -10,6 +10,7 @@ import { formatNaira } from "../types/errand";
 import { useToast } from "./ToastProvider";
 
 const FALLBACK_FEE_PERCENT = 0.1;
+const PAUSED_FALLBACK = "Withdrawals are currently not available at this time. Please try again later.";
 
 type Props = {
   balance: number;
@@ -25,6 +26,10 @@ export function WithdrawModal({ balance, onClose }: Props) {
   const request = useRequestWithdrawalMutation();
 
   const feePercent = rulesQ.data?.fee_percent ?? FALLBACK_FEE_PERCENT;
+  const [pausedByServer, setPausedByServer] = useState<string | null>(null);
+  const availability = rulesQ.data?.withdrawals;
+  const pausedMessage =
+    pausedByServer ?? (availability && !availability.enabled ? availability.message || PAUSED_FALLBACK : null);
 
   const [amount, setAmount] = useState("");
   const [bankQuery, setBankQuery] = useState("");
@@ -171,6 +176,11 @@ export function WithdrawModal({ balance, onClose }: Props) {
       setConfirming(false);
       toast.success("Withdrawal requested.");
     } catch (err) {
+      if (getApiErrorCode(err) === "WITHDRAWALS_PAUSED") {
+        setConfirming(false);
+        setPausedByServer(getApiErrorMessage(err, PAUSED_FALLBACK));
+        return;
+      }
       toast.error(getApiErrorMessage(err, "Could not request withdrawal."));
     }
   }
@@ -186,7 +196,7 @@ export function WithdrawModal({ balance, onClose }: Props) {
       >
         <div className="notification-modal-header">
           <h2 id={titleId} className="notification-modal-title" style={{ margin: 0 }}>
-            {done ? "Request sent" : confirming ? "Confirm withdrawal" : "Withdraw"}
+            {done ? "Request sent" : pausedMessage ? "Withdrawals unavailable" : confirming ? "Confirm withdrawal" : "Withdraw"}
           </h2>
           <button type="button" className="modal-close" aria-label="Close" onClick={onClose} disabled={busy}>
             ×
@@ -207,6 +217,18 @@ export function WithdrawModal({ balance, onClose }: Props) {
             <div className="notification-modal-actions">
               <button type="button" className="btn-primary" onClick={onClose}>
                 Done
+              </button>
+            </div>
+          </div>
+        ) : pausedMessage ? (
+          <div className="stack">
+            <p className="info" role="status">
+              {pausedMessage}
+            </p>
+            <p className="muted wallet-fund-copy">Your balance of {formatNaira(balance)} is safe in your wallet.</p>
+            <div className="notification-modal-actions">
+              <button type="button" className="btn-primary" onClick={onClose}>
+                Okay
               </button>
             </div>
           </div>

@@ -141,10 +141,16 @@ export type PayoutAccount = {
   account_name: string | null;
 };
 
+export type WithdrawalAvailability = {
+  enabled: boolean;
+  message: string | null;
+};
+
 export type WithdrawalRules = {
   payout_account: PayoutAccount | null;
   minimum_amount: number;
   fee_percent: number;
+  withdrawals?: WithdrawalAvailability;
 };
 
 export type WithdrawalRecord = {

@@ -39,6 +39,7 @@ import type { LocationPoint } from "../lib/placesApi";
 import { locationPointFromDefault, loadDefaultAddress } from "../lib/defaultAddress";
 import { locationPointFromSavedPlace, matchingSavedPlaceId } from "../lib/savedPlacesApi";
 import { queryClient } from "../lib/queryClient";
+import { refreshAllErrandQueries } from "../lib/errandCache";
 import { isProfileComplete } from "../types/api";
 import { formatNaira, type CouponPreview } from "../types/errand";
 
@@ -589,7 +590,7 @@ export function NewErrandPage() {
               err.code = res.error?.code;
               throw err;
             }
-            void queryClient.invalidateQueries({ queryKey: ["errands"], refetchType: "all" });
+            refreshAllErrandQueries(queryClient);
             return res.data;
           })
         : await create.mutateAsync(payload);
@@ -672,7 +673,7 @@ export function NewErrandPage() {
       return;
     }
     toast.success("Draft saved. You can finish it later from Errands.");
-    void queryClient.invalidateQueries({ queryKey: ["errands"], refetchType: "all" });
+    refreshAllErrandQueries(queryClient);
     navigate("/errands?status=draft");
   }
 

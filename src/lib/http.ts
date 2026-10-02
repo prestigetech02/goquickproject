@@ -33,6 +33,12 @@ http.interceptors.response.use(
   },
 );
 
+export function getApiErrorCode(error: unknown): string | null {
+  if (!axios.isAxiosError(error)) return null;
+  const data = error.response?.data as { error?: { code?: string } } | undefined;
+  return data?.error?.code ?? null;
+}
+
 export function getApiErrorMessage(error: unknown, fallback = "Something went wrong"): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as
