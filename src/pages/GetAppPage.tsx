@@ -14,7 +14,7 @@ export function GetAppPage() {
       </p>
 
       <div className="stack">
-        <a className="btn-primary" href={config.playStoreUrl} target="_blank" rel="noreferrer">
+        <a className="btn-primary" href={config.runnerPlayStoreUrl} target="_blank" rel="noreferrer">
           Download on Google Play
         </a>
         <a className="btn-secondary" href={config.appStoreUrl} target="_blank" rel="noreferrer">

@@ -385,6 +385,44 @@ h2 {
   font-size: 0.95rem;
 }
 
+.auth-reset-card > .muted + form {
+  margin-top: 20px;
+}
+
+.auth-reset-card .stack > .btn-primary {
+  margin-top: 6px;
+}
+
+.auth-reset-card.success-card h1 {
+  margin: 0;
+}
+
+.auth-block-cta {
+  align-self: stretch;
+  width: 100%;
+  margin-top: 8px;
+}
+
+@media (max-width: 520px) {
+  .auth-shell-form {
+    padding: 20px 12px 28px;
+  }
+
+  .auth-card {
+    padding: 24px 18px;
+    border-radius: 16px;
+  }
+
+  .auth-card h1 {
+    font-size: 1.5rem;
+  }
+
+  .auth-logo {
+    height: 34px;
+    margin-bottom: 14px;
+  }
+}
+
 label {
   font-size: 0.9rem;
   font-weight: 600;
@@ -908,6 +946,33 @@ a.btn-secondary:hover {
 .notif-popover-all:hover {
   background: rgba(26, 122, 10, 0.06);
   text-decoration: none;
+}
+
+/* The bell is not the rightmost header item (the avatar is), so anchoring the panel to it
+   pushes a near-full-width panel off the left edge. On phones, anchor to the header instead. */
+@media (max-width: 639px) {
+  .notif-popover {
+    position: static;
+  }
+
+  .notif-popover-panel {
+    top: calc(100% + 4px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .notif-popover-list {
+    max-height: calc(var(--app-viewport-height) - 200px);
+  }
+
+  .notif-popover-row {
+    padding: 12px 8px;
+  }
+}
+
+.notif-popover-row .notification-message {
+  overflow-wrap: anywhere;
 }
 
 .header-avatar {
@@ -1461,6 +1526,25 @@ a.btn-secondary:hover {
   color: var(--color-text);
 }
 
+.notification-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--app-viewport-height) - 40px);
+  overflow: hidden;
+}
+
+.notification-modal .notification-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  -webkit-overflow-scrolling: touch;
+}
+
+.notification-modal .notification-modal-actions {
+  flex-shrink: 0;
+}
+
 .notification-modal-header {
   display: flex;
   align-items: flex-start;
@@ -1473,6 +1557,7 @@ a.btn-secondary:hover {
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
 }
 
 .notification-modal-time {
@@ -1498,6 +1583,26 @@ a.btn-secondary:hover {
 .notification-modal-actions .btn-secondary {
   flex: 1;
   min-width: 120px;
+}
+
+@media (max-width: 639px) {
+  .modal-backdrop:has(> .notification-modal) {
+    padding: 12px;
+  }
+
+  .notification-modal {
+    max-height: calc(var(--app-viewport-height) - 24px);
+    padding: 16px;
+  }
+
+  .notification-modal-title {
+    font-size: 1.08rem;
+  }
+
+  .notification-modal .notification-modal-actions .btn-primary,
+  .notification-modal .notification-modal-actions .btn-secondary {
+    flex: 1 1 100%;
+  }
 }
 
 .sr-only {

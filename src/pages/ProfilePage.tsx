@@ -283,7 +283,7 @@ export function ProfilePage() {
             />
             <a
               className="profile-menu-item"
-              href={config.playStoreUrl}
+              href={config.requesterPlayStoreUrl}
               target="_blank"
               rel="noreferrer"
             >

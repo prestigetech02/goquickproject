@@ -505,11 +505,6 @@ export function NewErrandPage() {
       toast.error("Enter a valid offer amount, or leave it blank to use the platform estimate.");
       return;
     }
-    if (offer != null && Number.isFinite(floor) && offer + 0.0001 < floor) {
-      toast.error(`Your offer must be at least ${formatNaira(floor)} (platform minimum).`);
-      return;
-    }
-
     const required = offer ?? floor;
     const couponText = couponCode.trim();
     if (couponText && !couponPreview) {
@@ -602,8 +597,6 @@ export function NewErrandPage() {
         setPayMethod("card");
       } else if (code === "ZONE_NOT_SERVICEABLE") {
         toast.error(getApiErrorMessage(err, "This location is outside our service zones."));
-      } else if (code === "OFFER_BELOW_MINIMUM") {
-        toast.error(getApiErrorMessage(err, "Your offer is below the platform minimum."));
       } else {
         toast.error(getApiErrorMessage(err, "Could not create errand."));
       }
@@ -627,8 +620,7 @@ export function NewErrandPage() {
   const offerInvalid = offerAmount.replace(/,/g, "").trim().length > 0 && offerNum == null;
   const offerBelowFloor =
     offerFloor != null && offerNum != null && offerNum + 0.0001 < offerFloor;
-  const requiredAmount =
-    offerBelowFloor || offerInvalid ? null : (offerNum ?? offerFloor);
+  const requiredAmount = offerInvalid ? null : (offerNum ?? offerFloor);
   const chargeAmountBase = couponPreview?.payable_amount ?? requiredAmount;
   const chargeAmount =
     chargeAmountBase != null ? chargeAmountBase + serviceFee : null;
@@ -682,7 +674,6 @@ export function NewErrandPage() {
     !paying &&
     !zoneError &&
     Boolean(estimate?.suggested_price) &&
-    !offerBelowFloor &&
     !offerInvalid &&
     !couponLoading &&
     !couponBlocksSubmit;
@@ -1023,13 +1014,14 @@ export function NewErrandPage() {
                   onChange={(e) => setOfferAmount(e.target.value)}
                 />
               </label>
-              {offerBelowFloor ? (
-                <p className="error" style={{ margin: 0, fontSize: "0.85rem" }}>
-                  Minimum offer is {formatNaira(offerFloor!)}.
-                </p>
-              ) : offerInvalid ? (
+              {offerInvalid ? (
                 <p className="error" style={{ margin: 0, fontSize: "0.85rem" }}>
                   Enter a valid amount, or leave blank to use the platform estimate.
+                </p>
+              ) : offerBelowFloor ? (
+                <p className="info" style={{ margin: 0, fontSize: "0.85rem" }}>
+                  You're offering {formatNaira(offerNum!)}, below the recommended {formatNaira(offerFloor!)}. Runners may take
+                  longer to accept a lower offer.
                 </p>
               ) : (
                 <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>

@@ -3,7 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string;
   readonly VITE_PAYSTACK_PUBLIC_KEY: string;
-  readonly VITE_PLAY_STORE_URL: string;
+  readonly VITE_RUNNER_PLAY_STORE_URL: string;
+  readonly VITE_REQUESTER_PLAY_STORE_URL: string;
   readonly VITE_APP_STORE_URL: string;
   readonly VITE_LANDING_URL: string;
   readonly VITE_BROADCAST_DRIVER?: string;

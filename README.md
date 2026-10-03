@@ -33,7 +33,8 @@ php artisan serve --host=0.0.0.0 --port=8000
 |----------|---------|
 | `VITE_API_BASE_URL` | API base, e.g. `http://127.0.0.1:8000/api/v1` |
 | `VITE_PAYSTACK_PUBLIC_KEY` | Paystack public key (wallet funding) |
-| `VITE_PLAY_STORE_URL` / `VITE_APP_STORE_URL` | Runner “get the app” links |
+| `VITE_RUNNER_PLAY_STORE_URL` / `VITE_APP_STORE_URL` | Runner “get the app” links (runner app `com.errands.marketplace`) |
+| `VITE_REQUESTER_PLAY_STORE_URL` | Requester app (`com.goquick.requesters`), used for “Rate us” |
 | `VITE_LANDING_URL` | Marketing site |
 | `VITE_MAPBOX_ACCESS_TOKEN` | Public Mapbox token (`pk.…`) for live tracking maps |
 | `VITE_BROADCAST_DRIVER` | `pusher` (default) or `reverb` — must match backend `BROADCAST_CONNECTION` |
@@ -128,7 +129,8 @@ Create `web/.env.production` (or export vars before build):
 ```bash
 VITE_API_BASE_URL=https://api.goquickapp.com.ng/api/v1
 VITE_PAYSTACK_PUBLIC_KEY=pk_live_xxxxxxxx
-VITE_PLAY_STORE_URL=https://play.google.com/store/apps/details?id=com.goquick.app
+VITE_RUNNER_PLAY_STORE_URL=https://play.google.com/store/apps/details?id=com.errands.marketplace
+VITE_REQUESTER_PLAY_STORE_URL=https://play.google.com/store/apps/details?id=com.goquick.requesters
 VITE_APP_STORE_URL=https://apps.apple.com/app/goquick
 VITE_LANDING_URL=https://goquickapp.com.ng
 VITE_PUSHER_APP_KEY=<same as backend PUSHER_APP_KEY>

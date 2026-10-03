@@ -1,9 +1,14 @@
 export const config = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1",
   paystackPublicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "",
-  playStoreUrl:
-    import.meta.env.VITE_PLAY_STORE_URL ||
-    "https://play.google.com/store/apps/details?id=com.goquick.app",
+  /** GoQuick runner app (mobile/). */
+  runnerPlayStoreUrl:
+    import.meta.env.VITE_RUNNER_PLAY_STORE_URL ||
+    "https://play.google.com/store/apps/details?id=com.errands.marketplace",
+  /** GoQuick requester app (requester-mobile/) — the same audience as this web app. */
+  requesterPlayStoreUrl:
+    import.meta.env.VITE_REQUESTER_PLAY_STORE_URL ||
+    "https://play.google.com/store/apps/details?id=com.goquick.requesters",
   appStoreUrl: import.meta.env.VITE_APP_STORE_URL || "https://apps.apple.com/app/goquick",
   landingUrl: import.meta.env.VITE_LANDING_URL || "https://goquickapp.com.ng",
   supportEmail: import.meta.env.VITE_SUPPORT_EMAIL || "support@goquickapp.com.ng",
