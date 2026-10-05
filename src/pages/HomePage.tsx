@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { DefaultAddressSheet } from "../components/DefaultAddressSheet";
+import { HomeBanners } from "../components/HomeBanners";
 import { LocationPickerModal } from "../components/LocationPickerModal";
+import type { AppBanner } from "../lib/bannersApi";
+import { config } from "../lib/config";
 import { formatDate } from "../lib/datetime";
 import {
   defaultAddressDisplayLabel,
@@ -183,6 +186,35 @@ export function HomePage() {
     navigate(type ? `/errands/new?type=${encodeURIComponent(type)}` : "/errands/new");
   }
 
+  function openBanner(banner: AppBanner) {
+    const value = banner.link_value?.trim();
+    if (!value) return;
+    if (banner.link_type === "url") {
+      window.open(value, "_blank", "noopener,noreferrer");
+      return;
+    }
+    switch (value) {
+      case "new_errand":
+        handleNewErrand();
+        break;
+      case "my_errands":
+        navigate("/errands");
+        break;
+      case "wallet":
+        navigate(profileDone ? "/wallet" : "/complete-profile", profileDone ? undefined : { state: { reason: "wallet" } });
+        break;
+      case "referrals":
+        if (config.referralEnabled) navigate("/profile/referrals");
+        break;
+      case "notifications":
+        navigate("/notifications");
+        break;
+      case "support":
+        navigate("/profile/help");
+        break;
+    }
+  }
+
   const balance = walletQ.data?.balance ?? 0;
   const balanceLabel = walletQ.isPending
     ? "Loading…"
@@ -262,6 +294,8 @@ export function HomePage() {
           </button>
         ))}
       </section>
+
+      <HomeBanners onOpen={openBanner} />
 
       <div
         className="dash-wallet"

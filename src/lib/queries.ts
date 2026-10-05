@@ -6,6 +6,7 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { fetchProfile } from "./authApi";
+import { fetchBanners } from "./bannersApi";
 import { config } from "./config";
 import {
   changePassword,
@@ -118,6 +119,14 @@ export function useProfileQuery() {
     // Always reconcile with /user/profile so login payloads missing fields don't stick.
     staleTime: 0,
     refetchOnMount: "always",
+  });
+}
+
+export function useBannersQuery() {
+  return useQuery({
+    queryKey: queryKeys.banners,
+    queryFn: fetchBanners,
+    staleTime: 60_000,
   });
 }
 

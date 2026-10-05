@@ -43,4 +43,5 @@ export const queryKeys = {
   publicConfig: ["public-config"] as const,
   savedPlaces: ["profile", "saved-places"] as const,
   referral: ["profile", "referral"] as const,
+  banners: ["banners"] as const,
 };
