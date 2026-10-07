@@ -90,66 +90,6 @@ export async function fetchChatThreads(): Promise<ApiResponse<ChatThread[]>> {
   return { success: true, data: threads };
 }
 
-export async function fetchArchivedChatThreads(params?: {
-  page?: number;
-  perPage?: number;
-}): Promise<
-  ApiResponse<{
-    threads: ChatThread[];
-    pagination: ChatThreadsPage["pagination"];
-  }>
-> {
-  const page = params?.page ?? 1;
-  const perPage = params?.perPage ?? 20;
-  const { data } = await http.get("/chats/threads/archived", {
-    params: { page, per_page: perPage },
-  });
-  const payload = data as {
-    success?: boolean;
-    data?: {
-      threads?: unknown[];
-      pagination?: ChatThreadsPage["pagination"];
-    };
-    message?: string;
-    error?: { code?: string; message?: string };
-  };
-
-  if (!payload.success || !payload.data || !Array.isArray(payload.data.threads)) {
-    return {
-      success: false,
-      data: {
-        threads: [],
-        pagination: { current_page: 1, total_pages: 1, total_items: 0, per_page: perPage },
-      },
-      error: {
-        code: payload.error?.code ?? "UNKNOWN_ERROR",
-        message:
-          payload.error?.message ?? payload.message ?? "Failed to load archived chats",
-      },
-    };
-  }
-
-  return {
-    success: true,
-    data: {
-      threads: payload.data.threads
-        .map((item) => parseChatThread(item as Record<string, unknown>))
-        .filter((t) => t.id > 0),
-      pagination: {
-        current_page: Number(payload.data.pagination?.current_page) || page,
-        total_pages: Number(payload.data.pagination?.total_pages) || 1,
-        total_items: Number(payload.data.pagination?.total_items) || 0,
-        per_page: Number(payload.data.pagination?.per_page) || perPage,
-      },
-    },
-  };
-}
-
-export async function archiveChatThread(threadId: number): Promise<ApiResponse<void>> {
-  const { data } = await http.post(`/chats/threads/${threadId}/archive`);
-  return data as ApiResponse<void>;
-}
-
 export async function fetchChatMessages(
   threadId: number,
   options?: { afterId?: number; beforeId?: number; limit?: number },

@@ -27,7 +27,6 @@ import {
   markNotificationRead,
 } from "./notificationApi";
 import {
-  archiveChatThread,
   fetchChatMessages,
   fetchChatThreadsPage,
   MESSAGES_PAGE_SIZE,
@@ -82,7 +81,7 @@ import {
 import { getStoredUser, setStoredUser } from "./auth";
 import { queryKeys } from "./queryClient";
 import { insertCreatedErrand, refreshAllErrandQueries } from "./errandCache";
-import { removeOptimisticMessage, removeThreadFromChats, setThreadUnread, upsertChatMessage } from "./chatCache";
+import { removeOptimisticMessage, setThreadUnread, upsertChatMessage } from "./chatCache";
 import type { NotificationSettings, SavedPlace, User } from "../types/api";
 import type { NotificationListResult } from "./notificationApi";
 import type { AppNotification } from "../types/notification";
@@ -480,17 +479,6 @@ export function useChatThreadsQuery() {
   const unreadFromApi = query.data?.pages[0]?.unread_total ?? 0;
   const unreadTotal = Math.max(unreadFromThreads, unreadFromApi);
   return { ...query, data: threads, unreadTotal };
-}
-
-export function useArchiveChatMutation() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (threadId: number) => archiveChatThread(threadId),
-    onSuccess: (_data, threadId) => {
-      removeThreadFromChats(qc, threadId);
-      void qc.invalidateQueries({ queryKey: queryKeys.chatsArchived });
-    },
-  });
 }
 
 export function useChatMessagesQuery(threadId: number | null, options?: { live?: boolean }) {

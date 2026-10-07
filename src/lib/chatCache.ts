@@ -100,17 +100,6 @@ export function incrementThreadUnread(qc: QueryClient, threadId: number) {
   });
 }
 
-export function removeThreadFromChats(qc: QueryClient, threadId: number) {
-  qc.setQueryData<InfiniteData<ChatThreadsPage>>(queryKeys.chats, (old) => {
-    if (!old) return old;
-    const prev = findThreadUnread(old, threadId) ?? 0;
-    const currentTotal = old.pages[0]?.unread_total ?? 0;
-    return withUnreadTotal(old, currentTotal - prev, (page) =>
-      page.threads.filter((t) => t.id !== threadId),
-    );
-  });
-}
-
 export function upsertChatMessage(
   qc: QueryClient,
   threadId: number,

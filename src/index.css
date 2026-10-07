@@ -1752,60 +1752,6 @@ a.btn-secondary:hover {
   background: #fff;
 }
 
-.chat-menu {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.chat-menu-trigger {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
-  background: #fff;
-  color: var(--color-muted);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  padding: 0;
-}
-
-.chat-menu-trigger:hover,
-.chat-menu-trigger[aria-expanded="true"] {
-  color: var(--color-primary);
-  border-color: rgba(26, 122, 10, 0.35);
-  background: rgba(26, 122, 10, 0.06);
-}
-
-.chat-menu-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 160px;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.12);
-  padding: 6px;
-  z-index: 30;
-}
-
-.chat-menu-item {
-  display: block;
-  padding: 10px 12px;
-  border-radius: 8px;
-  color: var(--color-text);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.chat-menu-item:hover {
-  background: rgba(26, 122, 10, 0.08);
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
 .chat-back {
   display: inline-flex;
   margin-bottom: 4px;
@@ -2026,13 +1972,6 @@ a.btn-secondary:hover {
 
 .chat-thread-status.online .chat-thread-status-dot {
   background: #2e7d32;
-}
-
-.chat-thread-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .chat-thread-body {

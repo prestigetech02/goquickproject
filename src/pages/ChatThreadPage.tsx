@@ -7,7 +7,6 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import { ChatArchivesMenu } from "../components/ChatArchivesMenu";
 import { formatDayLabel, formatTime } from "../lib/datetime";
 import { formatChatCode, formatErrandCode } from "../lib/publicId";
 import { getApiErrorMessage } from "../lib/http";
@@ -393,9 +392,6 @@ export function ChatThreadPage() {
               })()}
             </span>
           </span>
-        </div>
-        <div className="chat-thread-actions">
-          <ChatArchivesMenu />
         </div>
       </header>
 

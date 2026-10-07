@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
-import { ChatArchivesMenu } from "../components/ChatArchivesMenu";
 import { fetchChatMessages, MESSAGES_PAGE_SIZE } from "../lib/chatApi";
 import { formatRelativeWhen } from "../lib/datetime";
 import { formatChatCode, formatErrandCode } from "../lib/publicId";
@@ -126,7 +125,6 @@ export function ChatsPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
-          <ChatArchivesMenu />
         </div>
 
         <div className="chats-list-scroll">

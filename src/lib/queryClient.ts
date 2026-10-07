@@ -23,7 +23,6 @@ export const queryKeys = {
   notificationsPreview: ["notifications", "preview"] as const,
   notificationsUnread: ["notifications", "unread-count"] as const,
   chats: ["chats"] as const,
-  chatsArchived: ["chats", "archived"] as const,
   chatMessages: (threadId: number) => ["chats", threadId, "messages"] as const,
   errands: (status: string) => ["errands", status] as const,
   errand: (id: number) => ["errands", "detail", id] as const,

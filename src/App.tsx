@@ -10,7 +10,6 @@ import {
 import { AccountSuccessPage } from "./pages/AccountSuccessPage";
 import { ChatsPage, ChatSelectEmpty } from "./pages/ChatsPage";
 import { ChatThreadPage } from "./pages/ChatThreadPage";
-import { ArchivedChatsPage } from "./pages/ArchivedChatsPage";
 import { CompleteProfilePage } from "./pages/CompleteProfilePage";
 import { ErrandsPage, ErrandSelectEmpty } from "./pages/ErrandsPage";
 import { ErrandDetailPage } from "./pages/ErrandDetailPage";
@@ -66,7 +65,6 @@ export default function App() {
             <Route index element={<ErrandSelectEmpty />} />
             <Route path=":errandId" element={<ErrandDetailPage />} />
           </Route>
-          <Route path="/chats/archived" element={<ArchivedChatsPage />} />
           <Route path="/chats" element={<ChatsPage />}>
             <Route index element={<ChatSelectEmpty />} />
             <Route path=":threadId" element={<ChatThreadPage />} />
