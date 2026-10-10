@@ -250,6 +250,15 @@ export function canCancelErrand(status: string): boolean {
   );
 }
 
+/** Requester can change listed fee only while still searching for a runner. */
+export function canAdjustErrandFee(errand: Errand): boolean {
+  const status = errand.status.toLowerCase();
+  if (status !== "searching" && status !== "pending") return false;
+  if (errand.runner_id != null) return false;
+  if (errand.payment?.escrow?.status === "held") return false;
+  return true;
+}
+
 export function proofStatusLabel(status: string | null | undefined): string {
   switch ((status || "pending").toLowerCase()) {
     case "accepted":

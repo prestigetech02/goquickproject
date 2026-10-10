@@ -101,6 +101,41 @@ export async function cancelErrand(errandId: number) {
   return data;
 }
 
+export async function adjustErrandFee(errandId: number, amount: number) {
+  try {
+    const { data } = await http.post<
+      ApiResponse<{
+        errand?: Errand;
+        amount?: number;
+        coupon?: unknown;
+        coupon_released?: boolean;
+      }>
+    >(`/errands/${errandId}/adjust-fee`, { amount });
+    if (!data.success) {
+      return {
+        success: false as const,
+        data: null,
+        error: data.error ?? { message: "Could not update the fee." },
+      };
+    }
+    return {
+      success: true as const,
+      data: {
+        errand: data.data?.errand ? withCoupon(data.data.errand) : null,
+        amount: data.data?.amount,
+        coupon: parseCouponPreview(data.data?.coupon),
+        coupon_released: Boolean(data.data?.coupon_released),
+      },
+    };
+  } catch (err: unknown) {
+    return {
+      success: false as const,
+      data: null,
+      error: apiErr(err, "Could not update the fee."),
+    };
+  }
+}
+
 export async function acceptOffer(offerId: number) {
   const { data } = await http.post<
     ApiResponse<{ errand: Errand; wallet_balance?: number }>

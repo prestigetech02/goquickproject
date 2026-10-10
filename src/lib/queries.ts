@@ -36,6 +36,7 @@ import {
 import {
   acceptErrandCompletion,
   acceptOffer,
+  adjustErrandFee,
   cancelErrand,
   createErrand,
   fetchErrand,
@@ -829,6 +830,32 @@ export function useCancelErrandMutation() {
       void qc.invalidateQueries({ queryKey: ["errands"] });
       void qc.invalidateQueries({ queryKey: queryKeys.wallet, refetchType: "all" });
       void qc.invalidateQueries({ queryKey: queryKeys.walletTransactions, refetchType: "all" });
+    },
+  });
+}
+
+export function useAdjustErrandFeeMutation(errandId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (amount: number) => {
+      const res = await adjustErrandFee(errandId, amount);
+      if (!res.success) {
+        const err = new Error(res.error?.message ?? "Could not update the fee.") as Error & {
+          code?: string;
+        };
+        err.code = res.error?.code;
+        throw err;
+      }
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data?.errand) {
+        qc.setQueryData(queryKeys.errand(errandId), data.errand);
+      } else {
+        void qc.invalidateQueries({ queryKey: queryKeys.errand(errandId) });
+      }
+      void qc.invalidateQueries({ queryKey: ["errands"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.errandOffers(errandId) });
     },
   });
 }

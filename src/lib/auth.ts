@@ -7,8 +7,8 @@ const REMEMBER_KEY = "gq_web_remember";
 
 function readRememberPreference(): boolean {
   const stored = localStorage.getItem(REMEMBER_KEY);
-  // Default to remembering when unset (existing sessions used localStorage)
-  return stored !== "0";
+  // Only persist across browser restarts when the user opts in.
+  return stored === "1";
 }
 
 export function getRememberMe(): boolean {
@@ -60,6 +60,11 @@ export function clearStoredUser(): void {
 export function clearSession(): void {
   clearToken();
   clearStoredUser();
+  try {
+    sessionStorage.removeItem("gq_web_last_activity");
+  } catch {
+    /* private mode */
+  }
   queryClient.clear();
   void import("./echo").then((m) => m.disconnectEcho());
 }
@@ -69,10 +74,16 @@ export function isAuthenticated(): boolean {
 }
 
 /** Persist session after login / OTP verify. */
-export function establishSession(token: string, user: User, remember = true): void {
+export function establishSession(token: string, user: User, remember = false): void {
   setRememberMe(remember);
   setToken(token, remember);
   setStoredUser(user, remember);
+  // Fresh activity timestamp for idle timeout (SessionIdleGuard).
+  try {
+    sessionStorage.setItem("gq_web_last_activity", String(Date.now()));
+  } catch {
+    /* private mode */
+  }
   queryClient.setQueryData(queryKeys.profile, user);
   void queryClient.invalidateQueries({ queryKey: queryKeys.profile });
 }

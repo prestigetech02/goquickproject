@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PasswordInput } from "../components/PasswordInput";
 import { useToast } from "../components/ToastProvider";
 import { establishSession, getRememberMe } from "../lib/auth";
@@ -17,10 +17,17 @@ function normalizePhone(value: string): string {
 export function LoginPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(() => getRememberMe());
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("reason") === "idle") {
+      toast.info("You were signed out after a period of inactivity.");
+    }
+  }, [searchParams, toast]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

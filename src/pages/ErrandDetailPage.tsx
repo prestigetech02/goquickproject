@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AcceptOfferPaymentModal } from "../components/AcceptOfferPaymentModal";
+import { AdjustFeeModal } from "../components/AdjustFeeModal";
 import { CancelErrandModal } from "../components/CancelErrandModal";
 import { CouponPriceBreakdown } from "../components/CouponPriceBreakdown";
 import {
@@ -18,6 +19,7 @@ import { getApiErrorMessage } from "../lib/http";
 import {
   useAcceptErrandCompletionMutation,
   useAcceptOfferMutation,
+  useAdjustErrandFeeMutation,
   useCancelErrandMutation,
   useErrandOffersQuery,
   useErrandQuery,
@@ -31,6 +33,7 @@ import {
 import { useErrandRealtime } from "../lib/useErrandRealtime";
 import {
   canActOnProof,
+  canAdjustErrandFee,
   canCancelErrand,
   canRaiseDispute,
   canReviewRunner,
@@ -116,6 +119,7 @@ export function ErrandDetailPage() {
   const [runnerLivePos, setRunnerLivePos] = useState<LiveRunnerPosition | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [adjustFeeOpen, setAdjustFeeOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -159,6 +163,7 @@ export function ErrandDetailPage() {
     refetchInterval: showOffers ? (errandLive ? 30_000 : 12_000) : false,
   });
   const cancelMutation = useCancelErrandMutation();
+  const adjustFeeMutation = useAdjustErrandFeeMutation(validId ?? 0);
   const disputeMutation = useRaiseErrandDisputeMutation(validId ?? 0);
   const acceptMutation = useAcceptOfferMutation(validId ?? 0);
   const verifyFunding = useVerifyWalletFundingMutation();
@@ -240,6 +245,21 @@ export function ErrandDetailPage() {
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Could not cancel errand."));
       setCancelOpen(false);
+    }
+  }
+
+  async function confirmAdjustFee(amount: number) {
+    if (!validId) return;
+    try {
+      const data = await adjustFeeMutation.mutateAsync(amount);
+      setAdjustFeeOpen(false);
+      const next = data?.amount ?? amount;
+      toast.success(`Fee updated to ${formatNaira(next)}.`);
+      if (data?.coupon_released) {
+        toast.info("Coupon was removed because it no longer applies to this fee.");
+      }
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not update the fee."));
     }
   }
 
@@ -359,6 +379,7 @@ export function ErrandDetailPage() {
   const coupon = errand.coupon;
   const canRemoveCoupon =
     Boolean(coupon) && ["searching", "pending"].includes(errand.status.toLowerCase());
+  const canAdjustFee = canAdjustErrandFee(errand);
 
   return (
     <div className="page errand-detail">
@@ -596,30 +617,66 @@ export function ErrandDetailPage() {
           {coupon && coupon.discount_amount > 0 ? (
             <>
               <CouponPriceBreakdown preview={coupon} />
-              {canRemoveCoupon ? (
+              <div className="errand-detail-inline-actions">
+                {canAdjustFee ? (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    style={{ alignSelf: "flex-start", padding: 0 }}
+                    disabled={adjustFeeMutation.isPending}
+                    onClick={() => setAdjustFeeOpen(true)}
+                  >
+                    Adjust fee
+                  </button>
+                ) : null}
+                {canRemoveCoupon ? (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    style={{ alignSelf: "flex-start", padding: 0 }}
+                    disabled={removeCouponMutation.isPending}
+                    onClick={() => {
+                      void removeCouponMutation
+                        .mutateAsync()
+                        .then(() => toast.success("Coupon removed."))
+                        .catch((err) =>
+                          toast.error(getApiErrorMessage(err, "Could not remove this coupon.")),
+                        );
+                    }}
+                  >
+                    {removeCouponMutation.isPending ? "Removing coupon…" : "Remove coupon"}
+                  </button>
+                ) : null}
+              </div>
+            </>
+          ) : displayAmount != null ? (
+            <>
+              <div className="errand-kv">
+                <span className="muted">Amount</span>
+                <span>{formatNaira(payableAmount ?? displayAmount)}</span>
+              </div>
+              {canAdjustFee ? (
                 <button
                   type="button"
                   className="btn-ghost"
                   style={{ alignSelf: "flex-start", padding: 0 }}
-                  disabled={removeCouponMutation.isPending}
-                  onClick={() => {
-                    void removeCouponMutation
-                      .mutateAsync()
-                      .then(() => toast.success("Coupon removed."))
-                      .catch((err) =>
-                        toast.error(getApiErrorMessage(err, "Could not remove this coupon.")),
-                      );
-                  }}
+                  disabled={adjustFeeMutation.isPending}
+                  onClick={() => setAdjustFeeOpen(true)}
                 >
-                  {removeCouponMutation.isPending ? "Removing coupon…" : "Remove coupon"}
+                  Adjust fee
                 </button>
               ) : null}
             </>
-          ) : displayAmount != null ? (
-            <div className="errand-kv">
-              <span className="muted">Amount</span>
-              <span>{formatNaira(payableAmount ?? displayAmount)}</span>
-            </div>
+          ) : canAdjustFee ? (
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ alignSelf: "flex-start", padding: 0 }}
+              disabled={adjustFeeMutation.isPending}
+              onClick={() => setAdjustFeeOpen(true)}
+            >
+              Adjust fee
+            </button>
           ) : null}
           {errand.payment ? (
             <div className="errand-kv">
@@ -739,8 +796,18 @@ export function ErrandDetailPage() {
         </section>
       ) : null}
 
-      {canCancelErrand(errand.status) || canRaiseDispute(errand) ? (
+      {canAdjustFee || canCancelErrand(errand.status) || canRaiseDispute(errand) ? (
         <div className="errand-detail-actions">
+          {canAdjustFee ? (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={adjustFeeMutation.isPending}
+              onClick={() => setAdjustFeeOpen(true)}
+            >
+              Adjust fee
+            </button>
+          ) : null}
           {canRaiseDispute(errand) ? (
             <button
               type="button"
@@ -762,6 +829,15 @@ export function ErrandDetailPage() {
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {adjustFeeOpen ? (
+        <AdjustFeeModal
+          currentAmount={displayAmount}
+          busy={adjustFeeMutation.isPending}
+          onClose={() => !adjustFeeMutation.isPending && setAdjustFeeOpen(false)}
+          onConfirm={(amount) => void confirmAdjustFee(amount)}
+        />
       ) : null}
 
       {cancelOpen ? (
