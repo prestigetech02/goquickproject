@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { formatNaira } from "../types/errand";
 
 type Props = {
