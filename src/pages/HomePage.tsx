@@ -1,10 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { DefaultAddressSheet } from "../components/DefaultAddressSheet";
-import { HomeBanners } from "../components/HomeBanners";
 import { LocationPickerModal } from "../components/LocationPickerModal";
-import type { AppBanner } from "../lib/bannersApi";
-import { config } from "../lib/config";
 import { formatDate } from "../lib/datetime";
 import {
   defaultAddressDisplayLabel,
@@ -13,6 +10,12 @@ import {
   saveDefaultAddress,
   type DefaultAddress,
 } from "../lib/defaultAddress";
+import {
+  exploreCategoryLabel,
+  exploreCover,
+  formatDistanceKm,
+  listExplorePlaces,
+} from "../lib/explorePlaces";
 import { formatErrandCode } from "../lib/publicId";
 import {
   useActiveErrandsPreviewQuery,
@@ -186,35 +189,6 @@ export function HomePage() {
     navigate(type ? `/errands/new?type=${encodeURIComponent(type)}` : "/errands/new");
   }
 
-  function openBanner(banner: AppBanner) {
-    const value = banner.link_value?.trim();
-    if (!value) return;
-    if (banner.link_type === "url") {
-      window.open(value, "_blank", "noopener,noreferrer");
-      return;
-    }
-    switch (value) {
-      case "new_errand":
-        handleNewErrand();
-        break;
-      case "my_errands":
-        navigate("/errands");
-        break;
-      case "wallet":
-        navigate(profileDone ? "/wallet" : "/complete-profile", profileDone ? undefined : { state: { reason: "wallet" } });
-        break;
-      case "referrals":
-        if (config.referralEnabled) navigate("/profile/referrals");
-        break;
-      case "notifications":
-        navigate("/notifications");
-        break;
-      case "support":
-        navigate("/profile/help");
-        break;
-    }
-  }
-
   const balance = walletQ.data?.balance ?? 0;
   const balanceLabel = walletQ.isPending
     ? "Loading…"
@@ -230,6 +204,16 @@ export function HomePage() {
     detectingAddress && !defaultAddress
       ? "Detecting location…"
       : defaultAddressDisplayLabel(defaultAddress);
+
+  const nearbyPlaces = useMemo(() => {
+    const origin =
+      defaultAddress &&
+      Number.isFinite(defaultAddress.latitude) &&
+      Number.isFinite(defaultAddress.longitude)
+        ? { latitude: defaultAddress.latitude, longitude: defaultAddress.longitude }
+        : null;
+    return listExplorePlaces({ origin }).slice(0, 4);
+  }, [defaultAddress]);
 
   return (
     <div className="page dash-page">
@@ -295,7 +279,32 @@ export function HomePage() {
         ))}
       </section>
 
-      <HomeBanners onOpen={openBanner} />
+      <section className="explore-home" aria-label="Explore places">
+        <div className="explore-home-head">
+          <h2>Explore places</h2>
+          <Link to="/explore" className="explore-home-link">
+            See all
+          </Link>
+        </div>
+        <div className="explore-home-rail">
+          {nearbyPlaces.map((place) => {
+            const cover = exploreCover(place);
+            return (
+              <Link key={place.id} to={`/explore/${place.id}`} className="explore-home-card">
+                {cover ? <img src={cover} alt="" loading="lazy" /> : <span className="explore-card-fallback">{place.name.slice(0, 1)}</span>}
+                <span className="explore-home-card-body">
+                  <span className="explore-card-category">{exploreCategoryLabel(place.category)}</span>
+                  <span className="explore-home-card-name">{place.name}</span>
+                  <span className="explore-home-card-meta muted">
+                    {place.area}
+                    {place.distance_km != null ? ` · ${formatDistanceKm(place.distance_km)}` : ""}
+                  </span>
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <div
         className="dash-wallet"

@@ -13,6 +13,8 @@ import { ChatThreadPage } from "./pages/ChatThreadPage";
 import { CompleteProfilePage } from "./pages/CompleteProfilePage";
 import { ErrandsPage, ErrandSelectEmpty } from "./pages/ErrandsPage";
 import { ErrandDetailPage } from "./pages/ErrandDetailPage";
+import { ExplorePlaceDetailPage } from "./pages/ExplorePlaceDetailPage";
+import { ExplorePlacesPage } from "./pages/ExplorePlacesPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { GetAppPage } from "./pages/GetAppPage";
 import { HomePage } from "./pages/HomePage";
@@ -59,6 +61,8 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/explore" element={<ExplorePlacesPage />} />
+          <Route path="/explore/:placeId" element={<ExplorePlaceDetailPage />} />
           <Route path="/wallet" element={<WalletPage />} />
           <Route path="/errands/new" element={<NewErrandPage />} />
           <Route path="/errands" element={<ErrandsPage />}>

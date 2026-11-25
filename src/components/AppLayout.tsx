@@ -19,6 +19,20 @@ function IconHome() {
   );
 }
 
+function IconExplore() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M14.5 9.5l-1.2 3.8-3.8 1.2 1.2-3.8 3.8-1.2z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconErrands() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -169,6 +183,7 @@ export function AppLayout() {
         aria-hidden={keyboardOpen}
       >
         <NavItem to="/" end label="Dashboard" icon={<IconHome />} />
+        <NavItem to="/explore" label="Explore" icon={<IconExplore />} />
         <NavItem to="/errands" label="My errands" icon={<IconErrands />} />
         <NavItem to="/chats" label="Chats" icon={<IconChats />} badge={chatUnread} />
         <NavItem to="/profile" label="Profile" icon={<IconProfile />} />

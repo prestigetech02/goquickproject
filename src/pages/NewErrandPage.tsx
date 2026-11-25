@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrandCreatedModal } from "../components/ErrandCreatedModal";
 import { CouponPriceBreakdown } from "../components/CouponPriceBreakdown";
 import { LocationPickerModal } from "../components/LocationPickerModal";
@@ -21,6 +21,7 @@ import {
   type ErrandEstimate,
   type ErrandTypeSchema,
 } from "../lib/errandApi";
+import type { ExplorePrefillState } from "../lib/explorePlaces";
 import { getApiErrorMessage } from "../lib/http";
 import {
   completePaystackWalletFunding,
@@ -42,6 +43,10 @@ import { queryClient } from "../lib/queryClient";
 import { refreshAllErrandQueries } from "../lib/errandCache";
 import { isProfileComplete } from "../types/api";
 import { formatNaira, type CouponPreview } from "../types/errand";
+
+type NewErrandLocationState = {
+  explorePlace?: ExplorePrefillState;
+};
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -183,9 +188,12 @@ function buildTitle(slug: string, description: string, typeName: string) {
 
 export function NewErrandPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialType = searchParams.get("type")?.trim() || "custom";
+  const explorePrefill = (location.state as NewErrandLocationState | null)?.explorePlace ?? null;
+  const initialType =
+    searchParams.get("type")?.trim() || explorePrefill?.errandType?.trim() || "custom";
 
   const schemasQ = useErrandTypeSchemasQuery();
   const create = useCreateErrandMutation();
@@ -203,12 +211,20 @@ export function NewErrandPage() {
   }, [schemasQ.data]);
 
   const [category, setCategory] = useState(initialType);
-  const [pickup, setPickup] = useState<LocationPoint | null>(null);
+  const [pickup, setPickup] = useState<LocationPoint | null>(() => {
+    if (!explorePrefill) return null;
+    return {
+      address: explorePrefill.pickupAddress,
+      latitude: explorePrefill.pickupLatitude,
+      longitude: explorePrefill.pickupLongitude,
+      resolving: false,
+    };
+  });
   const [dropoff, setDropoff] = useState<LocationPoint | null>(() => {
     const saved = loadDefaultAddress();
     return saved ? locationPointFromDefault(saved) : null;
   });
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(() => explorePrefill?.description ?? "");
   const [instructions, setInstructions] = useState("");
   const [timing, setTiming] = useState<"asap" | "scheduled">("asap");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -235,6 +251,7 @@ export function NewErrandPage() {
   const payMethodInited = useRef(false);
   const draftLoaded = useRef(false);
   const fundReturnRef = useRef(false);
+  const exploreApplied = useRef(Boolean(explorePrefill));
 
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -561,8 +578,9 @@ export function NewErrandPage() {
       category,
       type: timing === "scheduled" ? "scheduled" : "instant",
       scheduled_at: timing === "scheduled" ? new Date(scheduledAt).toISOString() : null,
-      budget_min: offer,
-      budget_max: offer,
+      // Always send the fee being charged. Blank offer = platform floor, so runners see a listed price.
+      budget_min: required,
+      budget_max: required,
       pickup_address: pickup.address,
       pickup_latitude: pickup.latitude,
       pickup_longitude: pickup.longitude,
@@ -761,6 +779,11 @@ export function NewErrandPage() {
 
         <section className="card stack">
           <h2 className="profile-card-title">Locations</h2>
+          {exploreApplied.current && explorePrefill ? (
+            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+              Pickup prefilled from <strong>{explorePrefill.placeName}</strong>. You can still change it.
+            </p>
+          ) : null}
           <div className="stack">
             <SavedPlaceChips
               places={savedPlaces}
