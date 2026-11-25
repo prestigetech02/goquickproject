@@ -11,7 +11,7 @@
   --color-info-bg: #e8f5e9;
   --radius: 14px;
   --shadow: 0 8px 28px rgba(17, 24, 39, 0.06);
-  /* 12px + 40px icons + 12px â€” keep in sync with .app-header-inner */
+  /* 12px + 40px icons + 12px - keep in sync with .app-header-inner */
   --app-header-offset: 64px;
   /* Prefer dynamic viewport; fall back for older browsers */
   --app-viewport-height: 100vh;
@@ -55,7 +55,7 @@ body:has(.app-shell) #root {
   overflow: hidden;
 }
 
-/* Auth shell: lock page to viewport; only the form column scrolls */
+/* Auth shell - desktop split; mobile form only */
 html:has(.auth-shell),
 body:has(.auth-shell) {
   height: var(--app-viewport-height);
@@ -133,7 +133,7 @@ h2 {
   font-size: 0.9rem;
 }
 
-/* Auth shell â€” desktop split; mobile form only */
+/* Auth shell - desktop split; mobile form only */
 .auth-shell {
   height: 100dvh;
   min-height: 100dvh;
@@ -713,7 +713,7 @@ a.btn-secondary:hover {
   border: 1px solid var(--color-border);
 }
 
-/* App shell â€” header + main + bottom nav fit exactly in the visible viewport */
+/* App shell - header + main + bottom nav fit exactly in the visible viewport */
 .app-shell {
   height: var(--app-viewport-height);
   max-height: var(--app-viewport-height);
@@ -2561,7 +2561,7 @@ a.btn-secondary:hover {
   }
 }
 
-/* Profile â€” base (mobile-first); desktop overrides must come after */
+/* Profile - base (mobile-first); desktop overrides must come after */
 .profile-split {
   display: flex;
   flex-direction: column;
@@ -4512,7 +4512,7 @@ a.card-link:hover {
   }
 }
 
-/* Admin-managed banners (1200Ã—400 home banners, 1080Ã—1350 popups) */
+/* Admin-managed banners (1200x400 home banners, 1080x1350 popups) */
 .home-banners-viewport {
   overflow: hidden;
   border-radius: 16px;
@@ -5709,7 +5709,7 @@ a.card-link:hover {
   }
 }
 
-/* ï¿½ï¿½ Toasts ï¿½ï¿½ */
+/* Toasts */
 .toast-stack {
   position: fixed;
   top: max(16px, env(safe-area-inset-top));
@@ -5813,7 +5813,7 @@ a.card-link:hover {
   }
 }
 
-/* —— Explore places —— */
+/* Explore places */
 .explore-page,
 .explore-detail-page {
   display: flex;
