@@ -43,4 +43,7 @@ export const queryKeys = {
   savedPlaces: ["profile", "saved-places"] as const,
   referral: ["profile", "referral"] as const,
   banners: ["banners"] as const,
+  exploreCategories: ["explore", "categories"] as const,
+  explorePlaces: (params: Record<string, unknown>) => ["explore", "places", params] as const,
+  explorePlace: (id: number) => ["explore", "place", id] as const,
 };

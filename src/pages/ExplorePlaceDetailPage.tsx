@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { fetchExploreCategories, fetchExplorePlace } from "../lib/exploreApi";
 import { loadDefaultAddress } from "../lib/defaultAddress";
 import { getStoredUser } from "../lib/auth";
+import { getApiErrorMessage } from "../lib/http";
+import { queryKeys } from "../lib/queryClient";
 import { isProfileComplete } from "../types/api";
 import {
-  distanceKm,
   errandTypeForPlaceCategory,
   exploreCategoryLabel,
   exploreFullAddress,
   formatDistanceKm,
-  getExplorePlace,
   type ExplorePrefillState,
 } from "../lib/explorePlaces";
 
@@ -19,20 +21,50 @@ export function ExplorePlaceDetailPage() {
   const { placeId } = useParams();
   const navigate = useNavigate();
   const id = Number(placeId);
-  const place = Number.isFinite(id) ? getExplorePlace(id) : null;
   const [activeIndex, setActiveIndex] = useState(0);
 
-  if (!place) {
+  const origin = useMemo(() => {
+    const saved = loadDefaultAddress();
+    if (!saved || !Number.isFinite(saved.latitude) || !Number.isFinite(saved.longitude)) return null;
+    return { latitude: saved.latitude, longitude: saved.longitude };
+  }, []);
+
+  const placeQuery = useQuery({
+    queryKey: queryKeys.explorePlace(id),
+    queryFn: () => fetchExplorePlace(id, origin),
+    enabled: Number.isFinite(id) && id > 0,
+  });
+
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.exploreCategories,
+    queryFn: fetchExploreCategories,
+    staleTime: 60_000,
+  });
+
+  if (!Number.isFinite(id) || id <= 0) {
     return <Navigate to="/explore" replace />;
   }
 
+  if (placeQuery.isError) {
+    return <Navigate to="/explore" replace />;
+  }
+
+  if (placeQuery.isLoading || !placeQuery.data) {
+    return (
+      <div className="page explore-detail-page">
+        <Link to="/explore" className="explore-back muted">
+          ← Back to Explore
+        </Link>
+        <p className="muted">{placeQuery.isLoading ? "Loading place…" : getApiErrorMessage(placeQuery.error)}</p>
+      </div>
+    );
+  }
+
+  const place = placeQuery.data;
+  const categories = categoriesQuery.data ?? [];
   const images = place.images.slice(0, MAX_THUMBS);
   const activeImage = images[activeIndex] ?? images[0] ?? null;
-  const origin = loadDefaultAddress();
-  const km =
-    origin && Number.isFinite(origin.latitude) && Number.isFinite(origin.longitude)
-      ? distanceKm({ latitude: origin.latitude, longitude: origin.longitude }, place)
-      : null;
+  const km = place.distance_km;
 
   function startErrand() {
     if (!isProfileComplete(getStoredUser())) {
@@ -40,14 +72,14 @@ export function ExplorePlaceDetailPage() {
       return;
     }
 
-    const errandType = errandTypeForPlaceCategory(place!.category);
+    const errandType = errandTypeForPlaceCategory(place.category);
     const prefill: ExplorePrefillState = {
-      placeId: place!.id,
-      placeName: place!.name,
-      pickupAddress: exploreFullAddress(place!),
-      pickupLatitude: place!.latitude,
-      pickupLongitude: place!.longitude,
-      description: `Errand at ${place!.name}. ${place!.description}`.trim(),
+      placeId: place.id,
+      placeName: place.name,
+      pickupAddress: exploreFullAddress(place),
+      pickupLatitude: place.latitude,
+      pickupLongitude: place.longitude,
+      description: `Errand at ${place.name}. ${place.description}`.trim(),
       errandType,
     };
 
@@ -63,7 +95,7 @@ export function ExplorePlaceDetailPage() {
       </Link>
 
       <header className="explore-detail-header">
-        <p className="explore-card-category">{exploreCategoryLabel(place.category)}</p>
+        <p className="explore-card-category">{exploreCategoryLabel(place.category, categories)}</p>
         <h1>{place.name}</h1>
         <p className="explore-detail-meta muted">
           {place.area}
@@ -79,52 +111,33 @@ export function ExplorePlaceDetailPage() {
         ) : (
           <div className="explore-detail-fallback">{place.name.slice(0, 1)}</div>
         )}
-
         {images.length > 1 ? (
-          <div className="explore-detail-thumbs" role="listbox" aria-label="Place photos">
-            {images.map((src, index) => {
-              const active = index === activeIndex;
-              return (
-                <button
-                  key={`${index}-${src}`}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  className={`explore-detail-thumb${active ? " is-active" : ""}`}
-                  onClick={() => setActiveIndex(index)}
-                >
-                  <img src={src} alt="" />
-                </button>
-              );
-            })}
+          <div className="explore-detail-thumbs" role="list">
+            {images.map((src, index) => (
+              <button
+                key={`${src}-${index}`}
+                type="button"
+                role="listitem"
+                className={`explore-detail-thumb${index === activeIndex ? " is-active" : ""}`}
+                onClick={() => setActiveIndex(index)}
+                aria-label={`Photo ${index + 1}`}
+              >
+                <img src={src} alt="" />
+              </button>
+            ))}
           </div>
         ) : null}
       </div>
 
-      <section className="explore-detail-section">
-        <h2>About</h2>
+      <section className="explore-detail-body">
         <p>{place.description}</p>
+        <p className="muted">{exploreFullAddress(place)}</p>
+        {place.phone ? <p className="muted">Phone: {place.phone}</p> : null}
       </section>
 
-      <section className="explore-detail-section">
-        <h2>Address</h2>
-        <p>{exploreFullAddress(place)}</p>
-        {place.phone ? (
-          <p className="muted">
-            Phone:{" "}
-            <a href={`tel:${place.phone}`} className="explore-phone">
-              {place.phone}
-            </a>
-          </p>
-        ) : null}
-      </section>
-
-      <div className="explore-detail-actions">
-        <button type="button" className="btn-primary explore-cta" onClick={startErrand}>
-          Create errand here
-        </button>
-        <p className="muted explore-cta-hint">Opens New errand with this place as pickup.</p>
-      </div>
+      <button type="button" className="btn-primary explore-detail-cta" onClick={startErrand}>
+        Start errand here
+      </button>
     </div>
   );
 }

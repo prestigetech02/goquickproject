@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { fetchExploreCategories, fetchExplorePlaces } from "../lib/exploreApi";
 import { loadDefaultAddress } from "../lib/defaultAddress";
 import {
-  EXPLORE_CATEGORIES,
-  exploreAreas,
   exploreCategoryLabel,
   exploreCover,
   formatDistanceKm,
-  listExplorePlaces,
 } from "../lib/explorePlaces";
+import { getApiErrorMessage } from "../lib/http";
+import { queryKeys } from "../lib/queryClient";
 
 export function ExplorePlacesPage() {
   const origin = useMemo(() => {
@@ -20,22 +21,45 @@ export function ExplorePlacesPage() {
   const [category, setCategory] = useState<string>("all");
   const [area, setArea] = useState<string>("all");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftArea, setDraftArea] = useState("all");
   const [draftCategory, setDraftCategory] = useState("all");
 
-  const areas = useMemo(() => exploreAreas(), []);
-  const filtersActive = category !== "all" || area !== "all";
-  const places = useMemo(
-    () =>
-      listExplorePlaces({
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.exploreCategories,
+    queryFn: fetchExploreCategories,
+    staleTime: 60_000,
+  });
+
+  const placesQuery = useQuery({
+    queryKey: queryKeys.explorePlaces({
+      category: category === "all" ? null : category,
+      area: area === "all" ? null : area,
+      query: debouncedQuery || null,
+      origin,
+    }),
+    queryFn: () =>
+      fetchExplorePlaces({
         category: category === "all" ? null : category,
         area: area === "all" ? null : area,
-        query,
+        query: debouncedQuery || null,
         origin,
       }),
-    [category, area, query, origin],
-  );
+    staleTime: 30_000,
+  });
+
+  const categories = categoriesQuery.data ?? [];
+  const places = placesQuery.data?.places ?? [];
+  const areas = placesQuery.data?.areas ?? [];
+  const filtersActive = category !== "all" || area !== "all";
+  const loading = categoriesQuery.isLoading || placesQuery.isLoading;
+  const error = categoriesQuery.error ?? placesQuery.error;
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -113,7 +137,7 @@ export function ExplorePlacesPage() {
         >
           All
         </button>
-        {EXPLORE_CATEGORIES.map((item) => (
+        {categories.map((item) => (
           <button
             key={item.slug}
             type="button"
@@ -132,7 +156,16 @@ export function ExplorePlacesPage() {
         {area !== "all" ? ` · Area: ${area}` : ""}
       </p>
 
-      {places.length === 0 ? (
+      {error ? (
+        <div className="explore-empty">
+          <p className="explore-empty-title">Could not load places</p>
+          <p className="muted">{getApiErrorMessage(error, "Try again in a moment.")}</p>
+        </div>
+      ) : loading ? (
+        <div className="explore-empty">
+          <p className="muted">Loading places…</p>
+        </div>
+      ) : places.length === 0 ? (
         <div className="explore-empty">
           <p className="explore-empty-title">No places match</p>
           <p className="muted">Try another category, area, or search term.</p>
@@ -168,7 +201,9 @@ export function ExplorePlacesPage() {
                     ) : null}
                   </span>
                   <span className="explore-card-body">
-                    <span className="explore-card-category">{exploreCategoryLabel(place.category)}</span>
+                    <span className="explore-card-category">
+                      {exploreCategoryLabel(place.category, categories)}
+                    </span>
                     <span className="explore-card-name">{place.name}</span>
                     <span className="explore-card-area muted">
                       {place.area}
@@ -203,7 +238,7 @@ export function ExplorePlacesPage() {
               <span>Category</span>
               <select value={draftCategory} onChange={(e) => setDraftCategory(e.target.value)}>
                 <option value="all">All categories</option>
-                {EXPLORE_CATEGORIES.map((item) => (
+                {categories.map((item) => (
                   <option key={item.slug} value={item.slug}>
                     {item.name}
                   </option>

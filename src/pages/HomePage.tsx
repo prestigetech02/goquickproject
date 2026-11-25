@@ -10,13 +10,15 @@ import {
   saveDefaultAddress,
   type DefaultAddress,
 } from "../lib/defaultAddress";
+import { useQuery } from "@tanstack/react-query";
+import { fetchExploreCategories, fetchExplorePlaces } from "../lib/exploreApi";
 import {
   exploreCategoryLabel,
   exploreCover,
   formatDistanceKm,
-  listExplorePlaces,
 } from "../lib/explorePlaces";
 import { formatErrandCode } from "../lib/publicId";
+import { queryKeys } from "../lib/queryClient";
 import {
   useActiveErrandsPreviewQuery,
   useErrandStatsQuery,
@@ -205,15 +207,29 @@ export function HomePage() {
       ? "Detecting location…"
       : defaultAddressDisplayLabel(defaultAddress);
 
-  const nearbyPlaces = useMemo(() => {
-    const origin =
-      defaultAddress &&
-      Number.isFinite(defaultAddress.latitude) &&
-      Number.isFinite(defaultAddress.longitude)
-        ? { latitude: defaultAddress.latitude, longitude: defaultAddress.longitude }
-        : null;
-    return listExplorePlaces({ origin }).slice(0, 4);
+  const exploreOrigin = useMemo(() => {
+    if (
+      !defaultAddress ||
+      !Number.isFinite(defaultAddress.latitude) ||
+      !Number.isFinite(defaultAddress.longitude)
+    ) {
+      return null;
+    }
+    return { latitude: defaultAddress.latitude, longitude: defaultAddress.longitude };
   }, [defaultAddress]);
+
+  const nearbyPlacesQuery = useQuery({
+    queryKey: queryKeys.explorePlaces({ origin: exploreOrigin, limit: 4, home: true }),
+    queryFn: () => fetchExplorePlaces({ origin: exploreOrigin, limit: 4 }),
+    staleTime: 30_000,
+  });
+  const exploreCategoriesQuery = useQuery({
+    queryKey: queryKeys.exploreCategories,
+    queryFn: fetchExploreCategories,
+    staleTime: 60_000,
+  });
+  const nearbyPlaces = nearbyPlacesQuery.data?.places ?? [];
+  const exploreCategories = exploreCategoriesQuery.data ?? [];
 
   return (
     <div className="page dash-page">
@@ -279,32 +295,40 @@ export function HomePage() {
         ))}
       </section>
 
-      <section className="explore-home" aria-label="Explore places">
-        <div className="explore-home-head">
-          <h2>Explore places</h2>
-          <Link to="/explore" className="explore-home-link">
-            See all
-          </Link>
-        </div>
-        <div className="explore-home-rail">
-          {nearbyPlaces.map((place) => {
-            const cover = exploreCover(place);
-            return (
-              <Link key={place.id} to={`/explore/${place.id}`} className="explore-home-card">
-                {cover ? <img src={cover} alt="" loading="lazy" /> : <span className="explore-card-fallback">{place.name.slice(0, 1)}</span>}
-                <span className="explore-home-card-body">
-                  <span className="explore-card-category">{exploreCategoryLabel(place.category)}</span>
-                  <span className="explore-home-card-name">{place.name}</span>
-                  <span className="explore-home-card-meta muted">
-                    {place.area}
-                    {place.distance_km != null ? ` · ${formatDistanceKm(place.distance_km)}` : ""}
+      {nearbyPlaces.length > 0 ? (
+        <section className="explore-home" aria-label="Explore places">
+          <div className="explore-home-head">
+            <h2>Explore places</h2>
+            <Link to="/explore" className="explore-home-link">
+              See all
+            </Link>
+          </div>
+          <div className="explore-home-rail">
+            {nearbyPlaces.map((place) => {
+              const cover = exploreCover(place);
+              return (
+                <Link key={place.id} to={`/explore/${place.id}`} className="explore-home-card">
+                  {cover ? (
+                    <img src={cover} alt="" loading="lazy" />
+                  ) : (
+                    <span className="explore-card-fallback">{place.name.slice(0, 1)}</span>
+                  )}
+                  <span className="explore-home-card-body">
+                    <span className="explore-card-category">
+                      {exploreCategoryLabel(place.category, exploreCategories)}
+                    </span>
+                    <span className="explore-home-card-name">{place.name}</span>
+                    <span className="explore-home-card-meta muted">
+                      {place.area}
+                      {place.distance_km != null ? ` · ${formatDistanceKm(place.distance_km)}` : ""}
+                    </span>
                   </span>
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <div
         className="dash-wallet"
