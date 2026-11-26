@@ -2,12 +2,14 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { AuthLayout } from "./components/AuthLayout";
 import {
+  BusinessSetupRoute,
   CompleteProfileRoute,
   GuestRoute,
   ProtectedRoute,
   SetPasswordRoute,
 } from "./components/ProtectedRoute";
 import { AccountSuccessPage } from "./pages/AccountSuccessPage";
+import { BusinessSetupPage } from "./pages/BusinessSetupPage";
 import { ChatsPage, ChatSelectEmpty } from "./pages/ChatsPage";
 import { ChatThreadPage } from "./pages/ChatThreadPage";
 import { CompleteProfilePage } from "./pages/CompleteProfilePage";
@@ -23,6 +25,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { ProfilePage, ProfileSelectEmpty } from "./pages/ProfilePage";
 import { AboutPage } from "./pages/profile/AboutPage";
 import { AccountSecurityPage } from "./pages/profile/AccountSecurityPage";
+import { BusinessBranchesPage } from "./pages/profile/BusinessBranchesPage";
 import { HelpSupportPage } from "./pages/profile/HelpSupportPage";
 import { SupportTicketsPage } from "./pages/profile/SupportTicketsPage";
 import { NewSupportTicketPage } from "./pages/profile/NewSupportTicketPage";
@@ -42,13 +45,19 @@ export default function App() {
       <Route element={<AuthLayout />}>
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/login/business" element={<Navigate to="/login" replace />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/signup/business" element={<Navigate to="/signup?type=business" replace />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/account-success" element={<AccountSuccessPage />} />
         </Route>
 
         <Route element={<SetPasswordRoute />}>
           <Route path="/set-password" element={<SetPasswordPage />} />
+        </Route>
+
+        <Route element={<BusinessSetupRoute />}>
+          <Route path="/business/setup" element={<BusinessSetupPage />} />
         </Route>
 
         <Route element={<CompleteProfileRoute />}>
@@ -77,6 +86,7 @@ export default function App() {
             <Route index element={<ProfileSelectEmpty />} />
             <Route path="personal" element={<PersonalInfoPage />} />
             <Route path="places" element={<SavedPlacesPage />} />
+            <Route path="business/branches" element={<BusinessBranchesPage />} />
             <Route path="referrals" element={<ReferralsPage />} />
             <Route path="security" element={<AccountSecurityPage />} />
             <Route path="notifications" element={<NotificationSettingsPage />} />

@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import authPanelArt from "../assets/auth-panel.png";
 
-const SCROLL_FORM_PATHS = new Set(["/complete-profile"]);
+const SCROLL_FORM_PATHS = new Set(["/complete-profile", "/business/setup"]);
 
 /** Persistent auth chrome: green panel stays mounted while forms switch via <Outlet />. */
 export function AuthLayout() {

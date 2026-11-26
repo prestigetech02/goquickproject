@@ -272,6 +272,9 @@ export type CreateErrandPayload = {
   /** Optional files for instructions (images, PDF, audio) — sent as multipart `attachments[]`. */
   attachments?: File[];
   coupon_code?: string | null;
+  /** When set, errand is tagged to this business (must be a membership). */
+  organization_id?: number | null;
+  organization_location_id?: number | null;
 };
 
 export type CreateErrandResult = {
@@ -351,6 +354,8 @@ function appendCreateErrandFormData(payload: CreateErrandPayload): FormData {
     ["estimated_stops", payload.estimated_stops],
     ["coupon_code", payload.coupon_code],
     ["as_draft", payload.as_draft ? 1 : undefined],
+    ["organization_id", payload.organization_id ?? undefined],
+    ["organization_location_id", payload.organization_location_id ?? undefined],
   ];
 
   for (const [key, value] of scalarEntries) {

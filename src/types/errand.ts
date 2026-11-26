@@ -120,6 +120,8 @@ export type Errand = {
   coupon?: CouponPreview | null;
   /** Flat buyer service fee (₦) from admin; added on top of offer/payable at payment. */
   service_fee?: number | null;
+  organization_id?: number | null;
+  organization_location_id?: number | null;
 };
 
 export type ErrandOffer = {

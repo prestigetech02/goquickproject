@@ -10,6 +10,22 @@ export type ApiResponse<T> = {
 
 export type UserRole = "buyer" | "runner" | "admin";
 
+/** Business membership returned on auth/profile (MVP: owner only). */
+export type OrganizationSummary = {
+  id: number;
+  name: string;
+  slug: string;
+  status: "pending" | "active" | "suspended" | string;
+  role: "owner" | "admin" | "dispatcher" | "viewer" | string;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  cac_number?: string | null;
+  created_at?: string | null;
+};
+
 export type NotificationSettings = {
   push_enabled: boolean;
   email_enabled: boolean;
@@ -77,10 +93,20 @@ export type User = {
   profile_picture?: string | null;
   /** False after OTP until web set-password step completes */
   has_password?: boolean;
+  /** Business orgs this user belongs to (empty for personal-only accounts). */
+  organizations?: OrganizationSummary[];
   notification_settings?: NotificationSettings;
   referral?: UserReferral;
   saved_places?: SavedPlace[];
 };
+
+export function userOwnsBusiness(user: User | null | undefined): boolean {
+  return (user?.organizations ?? []).some((org) => org.role === "owner");
+}
+
+export function userHasBusiness(user: User | null | undefined): boolean {
+  return (user?.organizations?.length ?? 0) > 0;
+}
 
 export type AuthPayload = {
   token: string;

@@ -5,6 +5,7 @@ import { useToast } from "../components/ToastProvider";
 import { establishSession, getRememberMe } from "../lib/auth";
 import { loginWithPhone } from "../lib/authApi";
 import { getApiErrorMessage } from "../lib/http";
+import { postAuthNavigate } from "../lib/postAuthNavigate";
 
 function normalizePhone(value: string): string {
   const digits = value.replace(/\D/g, "");
@@ -47,22 +48,13 @@ export function LoginPage() {
         return;
       }
 
-      establishSession(
-        res.data.token,
-        {
-          ...res.data.user,
-          has_password: res.data.user.has_password ?? true,
-        },
-        rememberMe,
-      );
-
+      const user = {
+        ...res.data.user,
+        has_password: res.data.user.has_password ?? true,
+      };
+      establishSession(res.data.token, user, rememberMe);
       toast.success("Signed in successfully.");
-
-      if (res.data.user.role === "runner") {
-        navigate("/get-app", { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
+      postAuthNavigate(navigate, user);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Login failed. Please try again."));
     } finally {
@@ -74,29 +66,33 @@ export function LoginPage() {
     <div className="auth-card">
       <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
       <h1>Welcome back</h1>
-      <p className="muted">Sign in to post and manage your errands.</p>
+      <p className="muted">Sign in with your phone — personal or business, same account.</p>
 
       <form onSubmit={handleSubmit} className="stack">
-        <label htmlFor="phone">Phone number</label>
-        <input
-          id="phone"
-          type="tel"
-          inputMode="numeric"
-          placeholder="08012345678"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          required
-          autoComplete="tel"
-        />
+        <div className="auth-field">
+          <label htmlFor="phone">Phone number</label>
+          <input
+            id="phone"
+            type="tel"
+            inputMode="numeric"
+            placeholder="08012345678"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+            autoComplete="tel"
+          />
+        </div>
 
-        <PasswordInput
-          id="password"
-          label="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-        />
+        <div className="auth-field">
+          <PasswordInput
+            id="password"
+            label="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
+        </div>
 
         <div className="row-between auth-options">
           <label className="checkbox-label" htmlFor="remember-me">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrandCreatedModal } from "../components/ErrandCreatedModal";
 import { CouponPriceBreakdown } from "../components/CouponPriceBreakdown";
@@ -23,6 +23,16 @@ import {
 } from "../lib/errandApi";
 import type { ExplorePrefillState } from "../lib/explorePlaces";
 import { getApiErrorMessage } from "../lib/http";
+import {
+  getActiveOrganizationId,
+  setActiveOrganizationId,
+  subscribeOrgContext,
+  syncOrgContextWithMemberships,
+} from "../lib/orgContext";
+import {
+  fetchOrganizationLocations,
+  type OrganizationLocation,
+} from "../lib/organizationApi";
 import {
   completePaystackWalletFunding,
   shortfallToFund,
@@ -202,6 +212,10 @@ export function NewErrandPage() {
   const { data: savedPlaces = [] } = useSavedPlacesQuery();
   const fundWallet = useFundWalletMutation();
   const verifyFunding = useVerifyWalletFundingMutation();
+  const activeOrgId = useSyncExternalStore(subscribeOrgContext, getActiveOrganizationId, () => null);
+  const orgs = profile?.organizations ?? getStoredUser()?.organizations ?? [];
+  const activeOrg =
+    activeOrgId != null ? (orgs.find((o) => o.id === activeOrgId) ?? null) : null;
 
   const types = useMemo(() => {
     const schemas = schemasQ.data ?? [];
@@ -209,6 +223,10 @@ export function NewErrandPage() {
     const preferred = schemas.filter((s) => DASHBOARD_SLUGS.has(s.slug));
     return preferred.length > 0 ? preferred : schemas;
   }, [schemasQ.data]);
+
+  const [orgBranches, setOrgBranches] = useState<OrganizationLocation[]>([]);
+  const [orgLocationId, setOrgLocationId] = useState<number | null>(null);
+  const [branchesLoading, setBranchesLoading] = useState(false);
 
   const [category, setCategory] = useState(initialType);
   const [pickup, setPickup] = useState<LocationPoint | null>(() => {
@@ -262,6 +280,42 @@ export function NewErrandPage() {
       navigate("/complete-profile", { replace: true, state: { reason: "post_errand" } });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    syncOrgContextWithMemberships(orgs);
+  }, [orgs]);
+
+  useEffect(() => {
+    if (!activeOrg) {
+      setOrgBranches([]);
+      setOrgLocationId(null);
+      return;
+    }
+    let cancelled = false;
+    setBranchesLoading(true);
+    void fetchOrganizationLocations(activeOrg.id)
+      .then((res) => {
+        if (cancelled) return;
+        const list = res.success && res.data?.locations ? res.data.locations : [];
+        setOrgBranches(list);
+        setOrgLocationId((prev) => {
+          if (prev && list.some((l) => l.id === prev)) return prev;
+          return list[0]?.id ?? null;
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOrgBranches([]);
+          setOrgLocationId(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBranchesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrg?.id]);
 
   useEffect(() => {
     const reference =
@@ -338,6 +392,15 @@ export function NewErrandPage() {
       }
       if (errand.budget_max != null && errand.budget_max > 0) {
         setOfferAmount(String(errand.budget_max));
+      }
+      if (errand.organization_id) {
+        setActiveOrganizationId(errand.organization_id);
+        if (errand.organization_location_id) {
+          setOrgLocationId(errand.organization_location_id);
+        }
+      } else {
+        setActiveOrganizationId(null);
+        setOrgLocationId(null);
       }
     })();
   }, [draftId, toast]);
@@ -591,6 +654,8 @@ export function NewErrandPage() {
       attachments:
         pendingAttachments.length > 0 ? pendingAttachments.map((a) => a.file) : undefined,
       coupon_code: couponPreview ? couponText : undefined,
+      organization_id: activeOrg?.id ?? null,
+      organization_location_id: activeOrg ? orgLocationId : null,
     };
 
     try {
@@ -674,6 +739,8 @@ export function NewErrandPage() {
         metadata: Object.keys(metadata).length ? metadata : null,
         attachments:
           pendingAttachments.length > 0 ? pendingAttachments.map((item) => item.file) : undefined,
+        organization_id: activeOrg?.id ?? null,
+        organization_location_id: activeOrg ? orgLocationId : null,
       },
       draftId ?? undefined,
     );
@@ -758,6 +825,58 @@ export function NewErrandPage() {
       </div>
 
       <form className="new-errand-form stack" onSubmit={(e) => void handleSubmit(e)}>
+        {activeOrg ? (
+          <section className="card stack">
+            <h2 className="profile-card-title">Posting as {activeOrg.name}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              This errand will be tagged to your business. Switch to Personal in the header to post
+              for yourself.
+            </p>
+            {branchesLoading ? (
+              <p className="muted" style={{ margin: 0 }}>
+                Loading branches…
+              </p>
+            ) : orgBranches.length > 0 ? (
+              <label className="stack">
+                <span className="muted">Branch</span>
+                <select
+                  value={orgLocationId ?? ""}
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    const loc = orgBranches.find((b) => b.id === id) ?? null;
+                    setOrgLocationId(loc?.id ?? null);
+                    if (
+                      loc &&
+                      loc.latitude != null &&
+                      loc.longitude != null &&
+                      Number.isFinite(loc.latitude) &&
+                      Number.isFinite(loc.longitude)
+                    ) {
+                      setPickup({
+                        address: loc.address,
+                        latitude: Number(loc.latitude),
+                        longitude: Number(loc.longitude),
+                        resolving: false,
+                      });
+                    }
+                  }}
+                >
+                  {orgBranches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="muted" style={{ margin: 0 }}>
+                No branches yet.{" "}
+                <Link to="/profile/business/branches">Add a branch</Link> (optional for now).
+              </p>
+            )}
+          </section>
+        ) : null}
+
         <section className="card stack">
           <h2 className="profile-card-title">Errand type</h2>
           <div className="new-errand-types" role="radiogroup" aria-label="Errand type">

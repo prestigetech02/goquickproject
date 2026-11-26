@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { getStoredUser, isAuthenticated } from "../lib/auth";
-import { hasPassword, isProfileComplete } from "../types/api";
+import { isBusinessSignupIntent } from "../lib/businessAuth";
+import { hasPassword, isProfileComplete, userOwnsBusiness } from "../types/api";
 
 export { isProfileComplete, hasPassword };
 
@@ -16,6 +17,10 @@ export function ProtectedRoute() {
   }
   if (user?.role === "runner") {
     return <Navigate to="/get-app" replace />;
+  }
+  // Only force setup during an in-progress business signup — not on every login.
+  if (isBusinessSignupIntent() && !userOwnsBusiness(user)) {
+    return <Navigate to="/business/setup" replace />;
   }
 
   return <Outlet />;
@@ -39,6 +44,9 @@ export function GuestRoute() {
     if (user?.role === "runner") {
       return <Navigate to="/get-app" replace />;
     }
+    if (isBusinessSignupIntent() && !userOwnsBusiness(user)) {
+      return <Navigate to="/business/setup" replace />;
+    }
     return <Navigate to="/" replace />;
   }
   return <Outlet />;
@@ -54,6 +62,24 @@ export function SetPasswordRoute() {
     if (user?.role === "runner") {
       return <Navigate to="/get-app" replace />;
     }
+    if (isBusinessSignupIntent() && !userOwnsBusiness(user)) {
+      return <Navigate to="/business/setup" replace />;
+    }
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+}
+
+/** Business setup after choosing Business on signup (same phone auth). */
+export function BusinessSetupRoute() {
+  if (!isAuthenticated()) {
+    return <Navigate to="/signup?type=business" replace />;
+  }
+  const user = getStoredUser();
+  if (!hasPassword(user)) {
+    return <Navigate to="/set-password" replace />;
+  }
+  if (userOwnsBusiness(user)) {
     return <Navigate to="/" replace />;
   }
   return <Outlet />;

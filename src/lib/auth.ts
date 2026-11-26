@@ -65,6 +65,7 @@ export function clearSession(): void {
   } catch {
     /* private mode */
   }
+  void import("./orgContext").then((m) => m.setActiveOrganizationId(null));
   queryClient.clear();
   void import("./echo").then((m) => m.disconnectEcho());
 }

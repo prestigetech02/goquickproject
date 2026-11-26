@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { NotificationsPopover } from "./NotificationsPopover";
+import { OrgContextSwitcher } from "./OrgContextSwitcher";
 import { getStoredUser } from "../lib/auth";
 import { useChatThreadsQuery, useProfileQuery, useUnreadNotificationCountQuery } from "../lib/queries";
 import { useUserRealtime } from "../lib/useUserRealtime";
@@ -159,6 +160,7 @@ export function AppLayout() {
             <img src="/goquick.png" alt="GoQuick" className="brand-logo" />
           </NavLink>
           <div className="app-header-actions">
+            <OrgContextSwitcher user={user} />
             <NotificationsPopover unreadCount={unreadCount} />
             <NavLink
               to="/profile"

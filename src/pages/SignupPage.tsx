@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
 import { establishSession } from "../lib/auth";
 import { sendOtp, verifyOtp } from "../lib/authApi";
+import { setSignupIntent, type SignupIntent } from "../lib/businessAuth";
 import { config } from "../lib/config";
 import { getApiErrorMessage } from "../lib/http";
+import { postAuthNavigate } from "../lib/postAuthNavigate";
 
 function normalizePhone(value: string): string {
   const digits = value.replace(/\D/g, "");
@@ -19,11 +21,19 @@ type Step = "phone" | "otp";
 export function SignupPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [accountType, setAccountType] = useState<SignupIntent>(() =>
+    searchParams.get("type") === "business" ? "business" : "personal",
+  );
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setSignupIntent(accountType);
+  }, [accountType]);
 
   async function handleSendOtp(e: FormEvent) {
     e.preventDefault();
@@ -42,6 +52,7 @@ export function SignupPage() {
     }
 
     try {
+      setSignupIntent(accountType);
       await sendOtp(normalized);
       setPhone(normalized);
       setStep("otp");
@@ -58,25 +69,24 @@ export function SignupPage() {
     setLoading(true);
 
     try {
+      setSignupIntent(accountType);
       const res = await verifyOtp(phone, otp.trim());
       if (!res.success || !res.data?.token) {
         toast.error(res.error?.message || "Invalid OTP.");
         return;
       }
 
-      establishSession(res.data.token, {
+      const user = {
         ...res.data.user,
         has_password: res.data.user.has_password === true,
-      });
-
+      };
+      establishSession(res.data.token, user);
       toast.success("Phone verified.");
 
-      if (res.data.user.has_password !== true) {
+      if (user.has_password !== true) {
         navigate("/set-password", { replace: true });
-      } else if (res.data.user.role === "runner") {
-        navigate("/get-app", { replace: true });
       } else {
-        navigate("/", { replace: true });
+        postAuthNavigate(navigate, user);
       }
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Could not verify OTP."));
@@ -91,22 +101,36 @@ export function SignupPage() {
       <h1>Create account</h1>
       <p className="muted">
         {step === "phone"
-          ? "Verify your phone to get started as a requester."
+          ? "Verify your phone to get started."
           : `Enter the code sent to ${phone}.`}
       </p>
 
       {step === "phone" ? (
         <form onSubmit={handleSendOtp} className="stack">
-          <label htmlFor="phone">Phone number</label>
-          <input
-            id="phone"
-            type="tel"
-            inputMode="numeric"
-            placeholder="08012345678"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
-          />
+          <div className="auth-field">
+            <label htmlFor="account-type">Account type</label>
+            <select
+              id="account-type"
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value as SignupIntent)}
+            >
+              <option value="personal">Personal — post your own errands</option>
+              <option value="business">Business — register as the business owner</option>
+            </select>
+          </div>
+
+          <div className="auth-field">
+            <label htmlFor="phone">Phone number</label>
+            <input
+              id="phone"
+              type="tel"
+              inputMode="numeric"
+              placeholder="08012345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
+          </div>
 
           <label className="checkbox-label terms-label" htmlFor="accept-terms">
             <input
@@ -133,17 +157,19 @@ export function SignupPage() {
         </form>
       ) : (
         <form onSubmit={handleVerifyOtp} className="stack">
-          <label htmlFor="otp">OTP code</label>
-          <input
-            id="otp"
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            placeholder="12345"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            required
-          />
+          <div className="auth-field">
+            <label htmlFor="otp">OTP code</label>
+            <input
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="123456"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              required
+            />
+          </div>
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? "Verifying…" : "Verify & continue"}
           </button>

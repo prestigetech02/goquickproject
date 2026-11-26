@@ -4,10 +4,16 @@ import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
 import { useToast } from "../components/ToastProvider";
 import { clearSession } from "../lib/auth";
 import { logout } from "../lib/authApi";
+import { setSignupIntent } from "../lib/businessAuth";
 import { config } from "../lib/config";
 import { getApiErrorMessage } from "../lib/http";
 import { useProfileQuery, useSupportTicketsUnreadCountQuery, useUploadProfilePictureMutation } from "../lib/queries";
-import { isProfileComplete, referralReferrerBonus, referralRequesterDiscount } from "../types/api";
+import {
+  isProfileComplete,
+  referralReferrerBonus,
+  referralRequesterDiscount,
+  userOwnsBusiness,
+} from "../types/api";
 import { formatNairaWhole } from "../types/errand";
 import { unreadCountLabel } from "../types/supportTicket";
 
@@ -90,6 +96,8 @@ export function ProfilePage() {
   const name =
     [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() || "Requester";
   const profileDone = isProfileComplete(user ?? null);
+  const ownsBusiness = userOwnsBusiness(user ?? null);
+  const ownedBusiness = user?.organizations?.find((org) => org.role === "owner");
   const referralCode = user?.referral?.referral_code?.trim() || "";
   const remainingDiscounts = user?.referral?.requester?.remaining_discounts ?? 0;
   const referrerBonusLabel = formatNairaWhole(referralReferrerBonus(user?.referral));
@@ -253,6 +261,26 @@ export function ProfilePage() {
               title="My Wallet"
               subtitle="Balance, top-ups, and transactions"
             />
+            {ownsBusiness && ownedBusiness ? (
+              <MenuLink
+                to="/profile/business/branches"
+                title={ownedBusiness.name}
+                subtitle={
+                  ownedBusiness.status === "pending"
+                    ? "Business account · pending review · manage branches"
+                    : "Manage branches & business errands"
+                }
+              />
+            ) : (
+              <MenuLink
+                title="Register your business"
+                subtitle="Same phone number — become the business owner"
+                onClick={() => {
+                  setSignupIntent("business");
+                  navigate("/business/setup");
+                }}
+              />
+            )}
             {config.referralEnabled ? (
               <MenuLink
                 to="/profile/referrals"

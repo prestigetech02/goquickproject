@@ -5,6 +5,7 @@ import { useToast } from "../components/ToastProvider";
 import { getStoredUser, setStoredUser } from "../lib/auth";
 import { setPassword as setPasswordApi } from "../lib/authApi";
 import { getApiErrorMessage } from "../lib/http";
+import { postAuthNavigate } from "../lib/postAuthNavigate";
 import type { User } from "../types/api";
 
 export function SetPasswordPage() {
@@ -43,11 +44,7 @@ export function SetPasswordPage() {
       setStoredUser(updated);
       toast.success("Password saved.");
 
-      if (updated.role === "runner") {
-        navigate("/get-app", { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
+      postAuthNavigate(navigate, updated);
     } catch (err) {
       const msg = getApiErrorMessage(err, "Could not set password.");
       if (msg.toLowerCase().includes("already set")) {
