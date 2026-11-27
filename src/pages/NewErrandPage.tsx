@@ -41,6 +41,7 @@ import {
   useCreateErrandMutation,
   useErrandTypeSchemasQuery,
   useFundWalletMutation,
+  useOrganizationWalletQuery,
   useProfileQuery,
   useSavedPlacesQuery,
   useVerifyWalletFundingMutation,
@@ -207,7 +208,7 @@ export function NewErrandPage() {
 
   const schemasQ = useErrandTypeSchemasQuery();
   const create = useCreateErrandMutation();
-  const walletQ = useWalletQuery();
+  const personalWalletQ = useWalletQuery();
   const { data: profile } = useProfileQuery();
   const { data: savedPlaces = [] } = useSavedPlacesQuery();
   const fundWallet = useFundWalletMutation();
@@ -216,6 +217,8 @@ export function NewErrandPage() {
   const orgs = profile?.organizations ?? getStoredUser()?.organizations ?? [];
   const activeOrg =
     activeOrgId != null ? (orgs.find((o) => o.id === activeOrgId) ?? null) : null;
+  const orgWalletQ = useOrganizationWalletQuery(activeOrg?.id);
+  const walletQ = activeOrg ? orgWalletQ : personalWalletQ;
 
   const types = useMemo(() => {
     const schemas = schemasQ.data ?? [];
@@ -325,9 +328,16 @@ export function NewErrandPage() {
     void (async () => {
       toast.info("Confirming payment…");
       try {
-        const data = await verifyFunding.mutateAsync(reference);
+        const data = await verifyFunding.mutateAsync({
+          reference,
+          organizationId: getActiveOrganizationId(),
+        });
         if (String(data.transaction.status).toLowerCase() === "completed") {
-          toast.success("Wallet funded. Create the errand to continue.");
+          toast.success(
+            getActiveOrganizationId()
+              ? "Business wallet funded. Create the errand to continue."
+              : "Wallet funded. Create the errand to continue.",
+          );
           payMethodInited.current = true;
           setPayMethod("wallet");
         } else {
@@ -600,7 +610,11 @@ export function NewErrandPage() {
 
     if (payMethod === "wallet") {
       if (walletBalance + 0.0001 < chargeAmount) {
-        toast.error("Insufficient wallet balance. Pay with card / transfer, or fund your wallet first.");
+        toast.error(
+          activeOrg
+            ? "Insufficient business wallet balance. Pay with card / transfer, or fund the business wallet first."
+            : "Insufficient wallet balance. Pay with card / transfer, or fund your wallet first.",
+        );
         setPayMethod("card");
         return;
       }
@@ -619,8 +633,16 @@ export function NewErrandPage() {
             amount: toFund,
             email,
             callbackUrl: `${window.location.origin}/errands/new`,
-            fund: (payload) => fundWallet.mutateAsync(payload),
-            verify: (reference) => verifyFunding.mutateAsync(reference),
+            fund: (payload) =>
+              fundWallet.mutateAsync({
+                ...payload,
+                organizationId: activeOrg?.id ?? null,
+              }),
+            verify: (reference) =>
+              verifyFunding.mutateAsync({
+                reference,
+                organizationId: activeOrg?.id ?? null,
+              }),
           });
         } catch (err) {
           setPaying(false);
@@ -754,6 +776,9 @@ export function NewErrandPage() {
     navigate("/errands?status=draft");
   }
 
+  const orgBlocked =
+    !!activeOrg && activeOrg.status !== "active";
+
   const canSubmit =
     !create.isPending &&
     !paying &&
@@ -761,7 +786,8 @@ export function NewErrandPage() {
     Boolean(estimate?.suggested_price) &&
     !offerInvalid &&
     !couponLoading &&
-    !couponBlocksSubmit;
+    !couponBlocksSubmit &&
+    !orgBlocked;
 
   useEffect(() => {
     const code = couponCode.trim();
@@ -832,6 +858,16 @@ export function NewErrandPage() {
               This errand will be tagged to your business. Switch to Personal in the header to post
               for yourself.
             </p>
+            {activeOrg.status === 'pending' ? (
+              <p className="error" style={{ margin: 0 }}>
+                This business is pending admin approval — you can’t post business errands yet.
+              </p>
+            ) : null}
+            {activeOrg.status === 'suspended' ? (
+              <p className="error" style={{ margin: 0 }}>
+                This business is suspended — business errands are blocked.
+              </p>
+            ) : null}
             {branchesLoading ? (
               <p className="muted" style={{ margin: 0 }}>
                 Loading branches…

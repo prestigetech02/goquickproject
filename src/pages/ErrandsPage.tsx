@@ -1,10 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Outlet, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { formatDate } from "../lib/datetime";
 import { getStoredUser } from "../lib/auth";
+import {
+  fetchOrganizationLocations,
+  type OrganizationLocation,
+} from "../lib/organizationApi";
+import {
+  getActiveOrganizationId,
+  subscribeOrgContext,
+  syncOrgContextWithMemberships,
+} from "../lib/orgContext";
 import { formatErrandCode } from "../lib/publicId";
-import { useMyErrandsInfiniteQuery } from "../lib/queries";
-import { isProfileComplete } from "../types/api";
+import { useMyErrandsInfiniteQuery, useProfileQuery } from "../lib/queries";
+import { isProfileComplete, userHasBusiness } from "../types/api";
 import {
   errandStatusLabel,
   errandStatusTone,
@@ -12,6 +21,7 @@ import {
   type Errand,
   type ErrandStatusFilter,
 } from "../types/errand";
+import type { MyErrandsScope } from "../lib/errandApi";
 
 const TABS: { id: ErrandStatusFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -20,6 +30,18 @@ const TABS: { id: ErrandStatusFilter; label: string }[] = [
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
 ];
+
+const SCOPE_TABS: { id: MyErrandsScope; label: string }[] = [
+  { id: "all", label: "Everything" },
+  { id: "personal", label: "Personal" },
+  { id: "business", label: "Business" },
+];
+
+function errandOrgLabel(errand: Errand): string | null {
+  if (!errand.organization?.name) return null;
+  const branch = errand.organization.location?.name?.trim();
+  return branch ? `${errand.organization.name} · ${branch}` : errand.organization.name;
+}
 
 function ErrandRow({
   errand,
@@ -33,6 +55,7 @@ function ErrandRow({
   const tone = errandStatusTone(errand.status);
   const runner = runnerDisplayName(errand.runner);
   const route = [errand.pickup_address, errand.dropoff_address].filter(Boolean).join(" → ");
+  const orgLabel = errandOrgLabel(errand);
 
   return (
     <button
@@ -43,8 +66,11 @@ function ErrandRow({
     >
       <span className="errand-row-top">
         <span className="errand-row-title">{errand.title || "Untitled errand"}</span>
-        <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status, errand.category)}</span>
+        <span className={`errand-status tone-${tone}`}>
+          {errandStatusLabel(errand.status, errand.category)}
+        </span>
       </span>
+      {orgLabel ? <span className="errand-row-org">{orgLabel}</span> : null}
       <span className="errand-row-meta muted">
         {formatErrandCode(errand.id, errand.created_at, errand.code)}
         {errand.created_at ? ` · ${formatDate(errand.created_at)}` : ""}
@@ -71,16 +97,69 @@ export function ErrandsPage() {
   const status: ErrandStatusFilter =
     statusParam && TABS.some((t) => t.id === statusParam) ? statusParam : "all";
 
+  const { data: profile } = useProfileQuery();
+  const orgs = profile?.organizations ?? getStoredUser()?.organizations ?? [];
+  const hasBusiness = userHasBusiness(profile ?? getStoredUser());
+  const activeOrgId = useSyncExternalStore(subscribeOrgContext, getActiveOrganizationId, () => null);
+  const activeOrg = activeOrgId != null ? orgs.find((o) => o.id === activeOrgId) ?? null : null;
+
+  useEffect(() => {
+    syncOrgContextWithMemberships(orgs);
+  }, [orgs]);
+
+  const scopeParam = searchParams.get("scope");
+  const scope: MyErrandsScope =
+    scopeParam === "all" || scopeParam === "personal" || scopeParam === "business"
+      ? scopeParam
+      : activeOrg
+        ? "business"
+        : hasBusiness
+          ? "personal"
+          : "all";
+
+  const orgParam = Number(searchParams.get("org") || "");
+  const organizationId =
+    scope === "business"
+      ? Number.isFinite(orgParam) && orgParam > 0
+        ? orgParam
+        : activeOrg?.id ?? orgs[0]?.id ?? null
+      : null;
+
+  const branchParam = Number(searchParams.get("branch") || "");
+  const organizationLocationId =
+    scope === "business" && Number.isFinite(branchParam) && branchParam > 0 ? branchParam : null;
+
+  const [branches, setBranches] = useState<OrganizationLocation[]>([]);
+  useEffect(() => {
+    if (!organizationId) {
+      setBranches([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchOrganizationLocations(organizationId)
+      .then((res) => {
+        if (!cancelled && res.success && res.data?.locations) {
+          setBranches(res.data.locations);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBranches([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
   const [query, setQuery] = useState("");
   const { data, error, isPending, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } =
     useMyErrandsInfiniteQuery(status, {
       refetchInterval: status === "completed" || status === "cancelled" ? false : 15_000,
+      scope,
+      organizationId,
+      organizationLocationId,
     });
 
-  const errands = useMemo(
-    () => data?.pages.flatMap((p) => p.errands) ?? [],
-    [data],
-  );
+  const errands = useMemo(() => data?.pages.flatMap((p) => p.errands) ?? [], [data]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -92,6 +171,8 @@ export function ErrandsPage() {
         e.pickup_address,
         e.dropoff_address,
         runnerDisplayName(e.runner),
+        e.organization?.name,
+        e.organization?.location?.name,
       ]
         .filter(Boolean)
         .join(" ")
@@ -104,11 +185,45 @@ export function ErrandsPage() {
     error instanceof Error ? error.message : error ? "Failed to load errands" : null;
   const showSkeleton = isPending && errands.length === 0;
 
-  function setStatus(next: ErrandStatusFilter) {
+  function patchParams(mutate: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams);
-    if (next === "all") params.delete("status");
-    else params.set("status", next);
+    mutate(params);
     setSearchParams(params, { replace: true });
+  }
+
+  function setStatus(next: ErrandStatusFilter) {
+    patchParams((params) => {
+      if (next === "all") params.delete("status");
+      else params.set("status", next);
+    });
+  }
+
+  function setScope(next: MyErrandsScope) {
+    patchParams((params) => {
+      if (next === "all") {
+        params.delete("scope");
+        params.delete("org");
+        params.delete("branch");
+        return;
+      }
+      params.set("scope", next);
+      if (next === "personal") {
+        params.delete("org");
+        params.delete("branch");
+      } else if (next === "business") {
+        const orgId = activeOrg?.id ?? orgs[0]?.id;
+        if (orgId) params.set("org", String(orgId));
+        else params.delete("org");
+        params.delete("branch");
+      }
+    });
+  }
+
+  function setBranch(next: number | null) {
+    patchParams((params) => {
+      if (!next) params.delete("branch");
+      else params.set("branch", String(next));
+    });
   }
 
   function openErrand(errand: Errand) {
@@ -126,6 +241,9 @@ export function ErrandsPage() {
     }
     navigate("/errands/new");
   }
+
+  const selectedOrgName =
+    organizationId != null ? orgs.find((o) => o.id === organizationId)?.name : null;
 
   return (
     <div className={`errands-split${hasDetail ? " has-detail" : ""}`}>
@@ -147,8 +265,51 @@ export function ErrandsPage() {
                 New errand
               </button>
             </div>
-            <p className="muted">Track requests, offers, and deliveries.</p>
+            <p className="muted">
+              {scope === "business" && selectedOrgName
+                ? `Business jobs for ${selectedOrgName}.`
+                : scope === "personal"
+                  ? "Your personal requests."
+                  : "Track requests, offers, and deliveries."}
+            </p>
           </div>
+
+          {hasBusiness ? (
+            <div className="errands-tabs errands-scope-tabs" role="tablist" aria-label="Account filter">
+              {SCOPE_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={scope === tab.id}
+                  className={`errands-tab${scope === tab.id ? " active" : ""}`}
+                  onClick={() => setScope(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {scope === "business" && branches.length > 0 ? (
+            <label className="errand-branch-filter">
+              <span className="sr-only">Branch</span>
+              <select
+                value={organizationLocationId ?? ""}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setBranch(Number.isFinite(v) && v > 0 ? v : null);
+                }}
+              >
+                <option value="">All branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <div className="errands-tabs" role="tablist" aria-label="Errand filters">
             {TABS.map((tab) => (
@@ -169,7 +330,7 @@ export function ErrandsPage() {
             <span className="sr-only">Search errands</span>
             <input
               type="search"
-              placeholder="Search title, place, or runner…"
+              placeholder="Search title, place, business, or runner…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -201,7 +362,9 @@ export function ErrandsPage() {
               <h2>{errands.length === 0 ? "No errands yet" : "No matches"}</h2>
               <p className="muted">
                 {errands.length === 0
-                  ? "When you post an errand, it will show up here."
+                  ? scope === "business"
+                    ? "Post an errand while Business is selected to see it here."
+                    : "When you post an errand, it will show up here."
                   : "Try a different search or filter."}
               </p>
             </div>

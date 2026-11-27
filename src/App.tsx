@@ -26,6 +26,7 @@ import { ProfilePage, ProfileSelectEmpty } from "./pages/ProfilePage";
 import { AboutPage } from "./pages/profile/AboutPage";
 import { AccountSecurityPage } from "./pages/profile/AccountSecurityPage";
 import { BusinessBranchesPage } from "./pages/profile/BusinessBranchesPage";
+import { BusinessPartnerApiPage } from "./pages/profile/BusinessPartnerApiPage";
 import { HelpSupportPage } from "./pages/profile/HelpSupportPage";
 import { SupportTicketsPage } from "./pages/profile/SupportTicketsPage";
 import { NewSupportTicketPage } from "./pages/profile/NewSupportTicketPage";
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="personal" element={<PersonalInfoPage />} />
             <Route path="places" element={<SavedPlacesPage />} />
             <Route path="business/branches" element={<BusinessBranchesPage />} />
+            <Route path="business/partner-api" element={<BusinessPartnerApiPage />} />
             <Route path="referrals" element={<ReferralsPage />} />
             <Route path="security" element={<AccountSecurityPage />} />
             <Route path="notifications" element={<NotificationSettingsPage />} />

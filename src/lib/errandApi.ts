@@ -27,8 +27,13 @@ function withCoupon(errand: Errand): Errand {
   return { ...errand, coupon: parseCouponPreview(errand.coupon) };
 }
 
+export type MyErrandsScope = "all" | "personal" | "business";
+
 export async function fetchMyErrands(params?: {
   status?: Exclude<ErrandStatusFilter, "all">;
+  scope?: MyErrandsScope;
+  organizationId?: number | null;
+  organizationLocationId?: number | null;
   page?: number;
   perPage?: number;
 }) {
@@ -40,6 +45,9 @@ export async function fetchMyErrands(params?: {
   >("/errands/my-errands", {
     params: {
       status: params?.status,
+      scope: params?.scope && params.scope !== "all" ? params.scope : undefined,
+      organization_id: params?.organizationId ?? undefined,
+      organization_location_id: params?.organizationLocationId ?? undefined,
       page: params?.page,
       per_page: params?.perPage ?? 20,
     },

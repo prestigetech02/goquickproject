@@ -8,9 +8,11 @@ const PRESETS = [1000, 2000, 5000, 10000, 20000, 50000];
 
 type Props = {
   onClose: () => void;
+  organizationId?: number | null;
+  title?: string;
 };
 
-export function FundWalletModal({ onClose }: Props) {
+export function FundWalletModal({ onClose, organizationId = null, title }: Props) {
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
@@ -18,6 +20,7 @@ export function FundWalletModal({ onClose }: Props) {
   const fund = useFundWalletMutation();
 
   const [amount, setAmount] = useState("");
+  const heading = title ?? (organizationId ? "Fund business wallet" : "Fund wallet");
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -51,7 +54,10 @@ export function FundWalletModal({ onClose }: Props) {
       const data = await fund.mutateAsync({
         amount: parsed,
         email,
-        callbackUrl: `${window.location.origin}/wallet`,
+        organizationId,
+        callbackUrl: organizationId
+          ? `${window.location.origin}/wallet?org=${organizationId}`
+          : `${window.location.origin}/wallet`,
       });
       window.location.assign(data.authorization_url!);
     } catch (err) {
@@ -70,7 +76,7 @@ export function FundWalletModal({ onClose }: Props) {
       >
         <div className="notification-modal-header">
           <h2 id={titleId} className="notification-modal-title" style={{ margin: 0 }}>
-            Fund wallet
+            {heading}
           </h2>
           <button
             type="button"
@@ -83,57 +89,37 @@ export function FundWalletModal({ onClose }: Props) {
           </button>
         </div>
 
-        <p className="muted wallet-fund-copy">
-          Choose an amount or enter your own. You’ll pay securely with Paystack.
-        </p>
-
-        <div className="wallet-presets" role="group" aria-label="Suggested amounts">
-          {PRESETS.map((value) => {
-            const selected = Number(amount) === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                className={`wallet-preset${selected ? " selected" : ""}`}
-                onClick={() => setAmount(String(value))}
-                disabled={fund.isPending}
-              >
-                {formatNaira(value)}
-              </button>
-            );
-          })}
-        </div>
-
         <form className="stack" onSubmit={(e) => void handleSubmit(e)}>
-          <label>
-            <span className="label">Amount (₦)</span>
+          <p className="muted" style={{ margin: 0 }}>
+            {organizationId
+              ? "Top up the business prepaid wallet. Org errands debit this balance."
+              : "Choose an amount to add to your GoQuick wallet."}
+          </p>
+          <div className="wallet-fund-presets">
+            {PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={`wallet-preset${Number(amount) === preset ? " selected" : ""}`}
+                onClick={() => setAmount(String(preset))}
+              >
+                {formatNaira(preset)}
+              </button>
+            ))}
+          </div>
+          <label className="stack">
+            <span className="muted">Amount (₦)</span>
             <input
               ref={inputRef}
-              type="number"
-              min={1}
-              step={1}
-              inputMode="numeric"
-              placeholder="e.g. 5000"
+              inputMode="decimal"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              disabled={fund.isPending}
-              required
+              placeholder="e.g. 5000"
             />
           </label>
-
-          <div className="notification-modal-actions">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onClose}
-              disabled={fund.isPending}
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={fund.isPending}>
-              {fund.isPending ? "Starting…" : "Continue"}
-            </button>
-          </div>
+          <button type="submit" className="btn-primary" disabled={fund.isPending}>
+            {fund.isPending ? "Starting payment…" : "Continue to Paystack"}
+          </button>
         </form>
       </div>
     </div>

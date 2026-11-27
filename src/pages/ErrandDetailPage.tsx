@@ -394,6 +394,14 @@ export function ErrandDetailPage() {
             {formatErrandCode(errand.id, errand.created_at, errand.code)}
             {errand.created_at ? ` · ${formatDateTime(errand.created_at)}` : ""}
           </p>
+          {errand.organization?.name ? (
+            <p className="errand-org-badge">
+              {errand.organization.name}
+              {errand.organization.location?.name
+                ? ` · ${errand.organization.location.name}`
+                : ""}
+            </p>
+          ) : null}
         </div>
         <span className={`errand-status tone-${tone}`}>{errandStatusLabel(errand.status, errand.category)}</span>
       </header>
@@ -512,6 +520,14 @@ export function ErrandDetailPage() {
           <p className="error">{errandStatusLabel(errand.status, errand.category)}</p>
         ) : (
           <>
+            {errand.fulfillment_mode === "managed" &&
+            ["searching", "pending"].includes(errand.status.toLowerCase()) &&
+            !errand.runner_id ? (
+              <p className="errand-delay-banner" role="status">
+                GoQuick is assigning a runner for this business job. You&apos;ll see updates here as soon as
+                someone is assigned.
+              </p>
+            ) : null}
             {isDelayed ? (
               <p className="errand-delay-banner" role="status">
                 Your runner reported a delay. The errand is still active.

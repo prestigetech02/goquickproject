@@ -122,6 +122,16 @@ export type Errand = {
   service_fee?: number | null;
   organization_id?: number | null;
   organization_location_id?: number | null;
+  /** managed = ops assign/invite; marketplace = open runner feed. */
+  fulfillment_mode?: "managed" | "marketplace" | string | null;
+  /** Present when the errand was posted as a business. */
+  organization?: {
+    id: number;
+    name: string;
+    status?: string;
+    fulfillment_mode?: string;
+    location?: { id: number; name: string } | null;
+  } | null;
 };
 
 export type ErrandOffer = {

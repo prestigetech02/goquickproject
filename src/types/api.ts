@@ -16,6 +16,10 @@ export type OrganizationSummary = {
   name: string;
   slug: string;
   status: "pending" | "active" | "suspended" | string;
+  /** managed = ops dispatch; marketplace = open runner feed. */
+  fulfillment_mode?: "managed" | "marketplace" | string;
+  /** Admin must enable before owners can mint Partner API keys. */
+  partner_api_enabled?: boolean;
   role: "owner" | "admin" | "dispatcher" | "viewer" | string;
   contact_phone?: string | null;
   contact_email?: string | null;

@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { formatDateTime } from "../lib/datetime";
 import { getApiErrorMessage } from "../lib/http";
 import {
+  getActiveOrganizationId,
+  subscribeOrgContext,
+  syncOrgContextWithMemberships,
+} from "../lib/orgContext";
+import {
+  useOrganizationWalletQuery,
+  useOrganizationWalletTransactionsInfiniteQuery,
+  useProfileQuery,
   useVerifyWalletFundingMutation,
   useWalletQuery,
   useWalletTransactionsInfiniteQuery,
@@ -18,6 +26,7 @@ import { FundWalletModal } from "../components/FundWalletModal";
 import { WithdrawModal } from "../components/WithdrawModal";
 import { useToast } from "../components/ToastProvider";
 import { WalletTransactionModal } from "../components/WalletTransactionModal";
+import { getStoredUser } from "../lib/auth";
 
 const HIDE_BALANCE_KEY = "requester_hide_balance";
 
@@ -74,8 +83,24 @@ function TxRow({ tx, onOpen }: { tx: WalletTransaction; onOpen: () => void }) {
 export function WalletPage() {
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const walletQ = useWalletQuery();
-  const txQ = useWalletTransactionsInfiniteQuery(20);
+  const { data: profile } = useProfileQuery();
+  const orgs = profile?.organizations ?? getStoredUser()?.organizations ?? [];
+  const activeOrgId = useSyncExternalStore(subscribeOrgContext, getActiveOrganizationId, () => null);
+  const activeOrg = activeOrgId != null ? orgs.find((o) => o.id === activeOrgId) ?? null : null;
+  const isOrg = activeOrg != null;
+
+  useEffect(() => {
+    syncOrgContextWithMemberships(orgs);
+  }, [orgs]);
+
+  const personalWalletQ = useWalletQuery();
+  const orgWalletQ = useOrganizationWalletQuery(isOrg ? activeOrg.id : null);
+  const walletQ = isOrg ? orgWalletQ : personalWalletQ;
+
+  const personalTxQ = useWalletTransactionsInfiniteQuery(20);
+  const orgTxQ = useOrganizationWalletTransactionsInfiniteQuery(isOrg ? activeOrg.id : null, 20);
+  const txQ = isOrg ? orgTxQ : personalTxQ;
+
   const verify = useVerifyWalletFundingMutation();
 
   const [fundOpen, setFundOpen] = useState(false);
@@ -103,14 +128,19 @@ export function WalletPage() {
       searchParams.get("reference")?.trim() || searchParams.get("trxref")?.trim() || "";
     if (!reference || verifyingRef.current) return;
     verifyingRef.current = true;
+    const orgFromUrl = Number(searchParams.get("org") || "");
+    const organizationId =
+      Number.isFinite(orgFromUrl) && orgFromUrl > 0
+        ? orgFromUrl
+        : activeOrg?.id ?? null;
 
     void (async () => {
       toast.info("Confirming your payment…");
       try {
-        const data = await verify.mutateAsync(reference);
+        const data = await verify.mutateAsync({ reference, organizationId });
         const status = String(data.transaction.status).toLowerCase();
         if (status === "completed") {
-          toast.success("Wallet funded successfully.");
+          toast.success(organizationId ? "Business wallet funded." : "Wallet funded successfully.");
         } else if (status === "pending") {
           toast.info("Payment is still pending. It will update shortly.");
         } else {
@@ -145,13 +175,18 @@ export function WalletPage() {
           <Link to="/" className="profile-back">
             ← Back
           </Link>
-          <h1>Wallet</h1>
+          <h1>{isOrg ? `${activeOrg.name} wallet` : "Wallet"}</h1>
+          {isOrg ? (
+            <p className="muted" style={{ margin: "4px 0 0" }}>
+              Business prepaid balance. Switch to Personal in the header for your own wallet.
+            </p>
+          ) : null}
         </div>
       </div>
 
       <section className="wallet-balance-card">
         <div className="wallet-balance-top">
-          <span>Available balance</span>
+          <span>{isOrg ? "Business balance" : "Available balance"}</span>
           <button
             type="button"
             className="wallet-balance-toggle"
@@ -172,14 +207,16 @@ export function WalletPage() {
           <span className="wallet-action-icon" aria-hidden>
             +
           </span>
-          Fund wallet
+          {isOrg ? "Fund business" : "Fund wallet"}
         </button>
-        <button type="button" className="wallet-action" onClick={() => setWithdrawOpen(true)}>
-          <span className="wallet-action-icon" aria-hidden>
-            −
-          </span>
-          Withdraw
-        </button>
+        {!isOrg ? (
+          <button type="button" className="wallet-action" onClick={() => setWithdrawOpen(true)}>
+            <span className="wallet-action-icon" aria-hidden>
+              −
+            </span>
+            Withdraw
+          </button>
+        ) : null}
       </div>
 
       <section className="wallet-tx-section">
@@ -209,7 +246,9 @@ export function WalletPage() {
         ) : transactions.length === 0 ? (
           <div className="dash-empty">
             <strong>No transactions yet</strong>
-            <p className="muted">Fund your wallet to see activity here.</p>
+            <p className="muted">
+              {isOrg ? "Fund the business wallet to see activity here." : "Fund your wallet to see activity here."}
+            </p>
           </div>
         ) : (
           <>
@@ -232,8 +271,13 @@ export function WalletPage() {
         )}
       </section>
 
-      {fundOpen ? <FundWalletModal onClose={() => setFundOpen(false)} /> : null}
-      {withdrawOpen ? (
+      {fundOpen ? (
+        <FundWalletModal
+          organizationId={isOrg ? activeOrg.id : null}
+          onClose={() => setFundOpen(false)}
+        />
+      ) : null}
+      {withdrawOpen && !isOrg ? (
         <WithdrawModal balance={balance} onClose={() => setWithdrawOpen(false)} />
       ) : null}
       {selectedTx ? (

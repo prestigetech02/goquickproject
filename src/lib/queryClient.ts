@@ -24,7 +24,8 @@ export const queryKeys = {
   notificationsUnread: ["notifications", "unread-count"] as const,
   chats: ["chats"] as const,
   chatMessages: (threadId: number) => ["chats", threadId, "messages"] as const,
-  errands: (status: string) => ["errands", status] as const,
+  errands: (status: string, filters?: Record<string, unknown>) =>
+    filters ? (["errands", status, filters] as const) : (["errands", status] as const),
   errand: (id: number) => ["errands", "detail", id] as const,
   errandOffers: (id: number) => ["errands", id, "offers"] as const,
   errandTracking: (id: number) => ["errands", id, "tracking"] as const,
@@ -33,6 +34,9 @@ export const queryKeys = {
   errandTypeSchemas: ["errands", "type-schemas"] as const,
   wallet: ["wallet"] as const,
   walletTransactions: ["wallet", "transactions"] as const,
+  orgWallet: (organizationId: number) => ["org-wallet", organizationId] as const,
+  orgWalletTransactions: (organizationId: number) =>
+    ["org-wallet", organizationId, "transactions"] as const,
   walletBanks: ["wallet", "banks"] as const,
   walletPayoutAccount: ["wallet", "payout-account"] as const,
   walletWithdrawals: ["wallet", "withdrawals"] as const,

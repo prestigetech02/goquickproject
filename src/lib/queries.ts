@@ -688,16 +688,33 @@ export function useSendChatMessageMutation(threadId: number) {
 
 export function useMyErrandsInfiniteQuery(
   status: ErrandStatusFilter,
-  options?: { refetchInterval?: number | false },
+  options?: {
+    refetchInterval?: number | false;
+    scope?: "all" | "personal" | "business";
+    organizationId?: number | null;
+    organizationLocationId?: number | null;
+  },
 ) {
+  const scope = options?.scope ?? "all";
+  const organizationId = options?.organizationId ?? null;
+  const organizationLocationId = options?.organizationLocationId ?? null;
+  const filters = {
+    scope,
+    organizationId,
+    organizationLocationId,
+  };
+
   return useInfiniteQuery({
-    queryKey: queryKeys.errands(status),
+    queryKey: queryKeys.errands(status, filters),
     staleTime: 30_000,
     refetchOnMount: "always",
     refetchInterval: options?.refetchInterval,
     queryFn: async ({ pageParam }) => {
       const res = await fetchMyErrands({
         status: status === "all" ? undefined : status,
+        scope,
+        organizationId,
+        organizationLocationId,
         page: pageParam,
         perPage: 20,
       });
@@ -929,6 +946,51 @@ export function useWalletQuery() {
   });
 }
 
+export function useOrganizationWalletQuery(organizationId: number | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.orgWallet(organizationId ?? 0),
+    enabled: organizationId != null && organizationId > 0,
+    queryFn: async () => {
+      const { fetchOrganizationWallet } = await import("./organizationApi");
+      const res = await fetchOrganizationWallet(organizationId!);
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load business wallet");
+      }
+      return res.data;
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useOrganizationWalletTransactionsInfiniteQuery(
+  organizationId: number | null | undefined,
+  perPage = 20,
+) {
+  return useInfiniteQuery({
+    queryKey: [...queryKeys.orgWalletTransactions(organizationId ?? 0), perPage] as const,
+    enabled: organizationId != null && organizationId > 0,
+    queryFn: async ({ pageParam }) => {
+      const { fetchOrganizationWalletTransactions } = await import("./organizationApi");
+      const res = await fetchOrganizationWalletTransactions(organizationId!, {
+        page: pageParam,
+        perPage,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.error?.message ?? "Failed to load transactions");
+      }
+      return res.data;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      if (last.pagination.current_page < last.pagination.total_pages) {
+        return last.pagination.current_page + 1;
+      }
+      return undefined;
+    },
+  });
+}
+
 export function useWalletTransactionsInfiniteQuery(perPage = 20) {
   return useInfiniteQuery({
     queryKey: [...queryKeys.walletTransactions, perPage] as const,
@@ -951,7 +1013,23 @@ export function useWalletTransactionsInfiniteQuery(perPage = 20) {
 
 export function useFundWalletMutation() {
   return useMutation({
-    mutationFn: async (payload: { amount: number; email?: string; callbackUrl?: string }) => {
+    mutationFn: async (payload: {
+      amount: number;
+      email?: string;
+      callbackUrl?: string;
+      organizationId?: number | null;
+    }) => {
+      if (payload.organizationId) {
+        const { fundOrganizationWallet } = await import("./organizationApi");
+        const res = await fundOrganizationWallet(payload.organizationId, payload);
+        if (!res.success || !res.data) {
+          throw new Error(res.error?.message ?? "Failed to start funding");
+        }
+        if (!res.data.authorization_url) {
+          throw new Error("Payment link was not returned. Try again.");
+        }
+        return res.data;
+      }
       const res = await fundWallet(payload);
       if (!res.success || !res.data) {
         throw new Error(res.error?.message ?? "Failed to start funding");
@@ -967,14 +1045,31 @@ export function useFundWalletMutation() {
 export function useVerifyWalletFundingMutation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (reference: string) => {
+    mutationFn: async (payload: string | { reference: string; organizationId?: number | null }) => {
+      const reference = typeof payload === "string" ? payload : payload.reference;
+      const organizationId = typeof payload === "string" ? null : payload.organizationId;
+      if (organizationId) {
+        const { verifyOrganizationWalletFunding } = await import("./organizationApi");
+        const res = await verifyOrganizationWalletFunding(organizationId, reference);
+        if (!res.success || !res.data) {
+          throw new Error(res.error?.message ?? "Failed to verify payment");
+        }
+        return { ...res.data, organizationId };
+      }
       const res = await verifyWalletFunding(reference);
       if (!res.success || !res.data) {
         throw new Error(res.error?.message ?? "Failed to verify payment");
       }
-      return res.data;
+      return { ...res.data, organizationId: null as number | null };
     },
     onSuccess: (data) => {
+      if (data.organizationId) {
+        void qc.invalidateQueries({ queryKey: queryKeys.orgWallet(data.organizationId) });
+        void qc.invalidateQueries({
+          queryKey: queryKeys.orgWalletTransactions(data.organizationId),
+        });
+        return;
+      }
       qc.setQueryData(queryKeys.wallet, (prev: { id: number; balance: number; currency: string } | undefined) =>
         prev
           ? { ...prev, balance: data.wallet_balance }

@@ -262,15 +262,26 @@ export function ProfilePage() {
               subtitle="Balance, top-ups, and transactions"
             />
             {ownsBusiness && ownedBusiness ? (
-              <MenuLink
-                to="/profile/business/branches"
-                title={ownedBusiness.name}
-                subtitle={
-                  ownedBusiness.status === "pending"
-                    ? "Business account · pending review · manage branches"
-                    : "Manage branches & business errands"
-                }
-              />
+              <>
+                <MenuLink
+                  to="/profile/business/branches"
+                  title={ownedBusiness.name}
+                  subtitle={
+                    ownedBusiness.status === "pending"
+                      ? "Business account · pending review · manage branches"
+                      : "Manage branches & business errands"
+                  }
+                />
+                <MenuLink
+                  to="/profile/business/partner-api"
+                  title="Partner API"
+                  subtitle={
+                    ownedBusiness.partner_api_enabled
+                      ? "Create and revoke API keys for your integrations"
+                      : "Keys available after GoQuick enables Partner API"
+                  }
+                />
+              </>
             ) : (
               <MenuLink
                 title="Register your business"
