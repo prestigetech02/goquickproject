@@ -267,9 +267,12 @@ export function ProfilePage() {
                   to="/profile/business/branches"
                   title={ownedBusiness.name}
                   subtitle={
-                    ownedBusiness.status === "pending"
-                      ? "Business account · pending review · manage branches"
-                      : "Manage branches & business errands"
+                    [
+                      ownedBusiness.code || `GQORG${String(ownedBusiness.id).padStart(5, "0")}`,
+                      ownedBusiness.status === "pending"
+                        ? "pending review · manage branches"
+                        : "Manage branches & business errands",
+                    ].join(" · ")
                   }
                 />
                 <MenuLink

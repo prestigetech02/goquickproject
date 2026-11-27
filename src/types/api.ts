@@ -13,6 +13,8 @@ export type UserRole = "buyer" | "runner" | "admin";
 /** Business membership returned on auth/profile (MVP: owner only). */
 export type OrganizationSummary = {
   id: number;
+  /** Public org id, e.g. GQORG00001 — shown to partners and in profile. */
+  code?: string;
   name: string;
   slug: string;
   status: "pending" | "active" | "suspended" | string;
@@ -20,6 +22,10 @@ export type OrganizationSummary = {
   fulfillment_mode?: "managed" | "marketplace" | string;
   /** Admin must enable before owners can mint Partner API keys. */
   partner_api_enabled?: boolean;
+  /** QoreID KYB — identity_verified/verified allows dashboard; org may still be pending. */
+  kyb_status?: string;
+  kyb_address_status?: string;
+  kyb_failure_reason?: string | null;
   role: "owner" | "admin" | "dispatcher" | "viewer" | string;
   contact_phone?: string | null;
   contact_email?: string | null;

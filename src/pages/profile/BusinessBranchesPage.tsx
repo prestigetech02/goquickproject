@@ -131,6 +131,23 @@ export function BusinessBranchesPage() {
         }
       />
 
+      <div className="card stack" style={{ gap: 6, marginBottom: 12 }}>
+        <p className="muted" style={{ margin: 0, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.4 }}>
+          Organization profile
+        </p>
+        <strong style={{ fontSize: 16 }}>{owned.name}</strong>
+        <p className="muted" style={{ margin: 0 }}>
+          Organization ID:{" "}
+          <strong style={{ color: "var(--ink, #17211b)" }}>
+            {owned.code || `GQORG${String(owned.id).padStart(5, "0")}`}
+          </strong>
+        </p>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          Status: {owned.status}
+          {owned.fulfillment_mode ? ` · ${owned.fulfillment_mode} fulfillment` : ""}
+        </p>
+      </div>
+
       <p className="muted">
         Branches belong to <strong>{owned.name}</strong>. When you create an errand as the
         business, you can tag which branch it is for.

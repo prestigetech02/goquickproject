@@ -10,6 +10,24 @@ export type CreateOrganizationPayload = {
   state?: string;
   contact_email?: string;
   contact_phone?: string;
+  first_name: string;
+  last_name: string;
+  lga: string;
+  director_id_type: "nin" | "voters_card" | "passport" | "drivers_license" | string;
+  director_id_number: string;
+  director_id_document: File;
+  proof_of_address: File;
+};
+
+export type OrganizationKybResult = {
+  organization: OrganizationSummary;
+  organizations: OrganizationSummary[];
+  kyb: {
+    status: string;
+    address_status: string;
+    can_proceed: boolean;
+    failure_reason?: string | null;
+  };
 };
 
 export type OrganizationLocation = {
@@ -41,10 +59,50 @@ export async function fetchMyOrganizations() {
   return data;
 }
 
+function toOrganizationFormData(payload: CreateOrganizationPayload): FormData {
+  const form = new FormData();
+  form.append("name", payload.name);
+  if (payload.cac_number) form.append("cac_number", payload.cac_number);
+  if (payload.address) form.append("address", payload.address);
+  if (payload.city) form.append("city", payload.city);
+  if (payload.state) form.append("state", payload.state);
+  if (payload.contact_email) form.append("contact_email", payload.contact_email);
+  if (payload.contact_phone) form.append("contact_phone", payload.contact_phone);
+  form.append("first_name", payload.first_name);
+  form.append("last_name", payload.last_name);
+  form.append("lga", payload.lga);
+  form.append("director_id_type", payload.director_id_type);
+  form.append("director_id_number", payload.director_id_number);
+  form.append("director_id_document", payload.director_id_document);
+  form.append("proof_of_address", payload.proof_of_address);
+  return form;
+}
+
 export async function createOrganization(payload: CreateOrganizationPayload) {
-  const { data } = await http.post<
-    ApiResponse<{ organization: OrganizationSummary; organizations: OrganizationSummary[] }>
-  >("/organizations", payload);
+  const { data } = await http.post<ApiResponse<OrganizationKybResult>>("/organizations", toOrganizationFormData(payload), {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export async function resubmitOrganizationKyb(
+  organizationId: number,
+  payload: Omit<CreateOrganizationPayload, "name" | "cac_number" | "address" | "city" | "state" | "contact_email" | "contact_phone">,
+) {
+  const form = new FormData();
+  form.append("first_name", payload.first_name);
+  form.append("last_name", payload.last_name);
+  form.append("lga", payload.lga);
+  form.append("director_id_type", payload.director_id_type);
+  form.append("director_id_number", payload.director_id_number);
+  form.append("director_id_document", payload.director_id_document);
+  form.append("proof_of_address", payload.proof_of_address);
+
+  const { data } = await http.post<ApiResponse<OrganizationKybResult>>(
+    `/organizations/${organizationId}/kyb`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
   return data;
 }
 
