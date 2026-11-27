@@ -95,14 +95,19 @@ export function useToast() {
     throw new Error("useToast must be used within ToastProvider");
   }
 
-  return {
-    showToast: context.showToast,
-    dismissToast: context.dismissToast,
-    success: (message: string, durationMs?: number) =>
-      context.showToast(message, "success", durationMs),
-    error: (message: string, durationMs?: number) =>
-      context.showToast(message, "error", durationMs),
-    info: (message: string, durationMs?: number) =>
-      context.showToast(message, "info", durationMs),
-  };
+  // Stable identity — callers often put `toast` in useEffect deps; a new object
+  // every render would re-trigger loads (e.g. Partner API page blinking "Loading").
+  return useMemo(
+    () => ({
+      showToast: context.showToast,
+      dismissToast: context.dismissToast,
+      success: (message: string, durationMs?: number) =>
+        context.showToast(message, "success", durationMs),
+      error: (message: string, durationMs?: number) =>
+        context.showToast(message, "error", durationMs),
+      info: (message: string, durationMs?: number) =>
+        context.showToast(message, "info", durationMs),
+    }),
+    [context],
+  );
 }

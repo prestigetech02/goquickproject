@@ -77,6 +77,7 @@ export function BusinessPartnerApiPage() {
     return () => {
       cancelled = true;
     };
+    // toast is memoized in useToast(); owned.id is the only load trigger we need.
   }, [owned?.id, toast]);
 
   if (!userOwnsBusiness(user) || !owned) {
@@ -147,9 +148,7 @@ export function BusinessPartnerApiPage() {
       <ProfileSubHeader title="Partner API" />
 
       <p className="muted">
-        Keys for <strong>{owned.name}</strong>. Use them to call{" "}
-        <code>GET /api/v1/partner/ping</code> (job endpoints come next). GoQuick ops must enable Partner
-        API for your business before you can create keys — those keys also appear in the admin console.
+        API keys and webhooks for <strong>{owned.name}</strong>. Docs cover endpoints and signatures.
       </p>
 
       {loading ? <p className="muted">Loading…</p> : null}
@@ -158,8 +157,7 @@ export function BusinessPartnerApiPage() {
         <div className="card stack">
           <h2 className="profile-card-title">API not enabled yet</h2>
           <p className="muted" style={{ margin: 0 }}>
-            Your business is registered, but Partner API access is still off. Ask GoQuick to enable it
-            on your organization (Organizations Mgt → Partner API). After that you can mint keys here.
+            Contact GoQuick to enable Partner API, then you can create keys here.
           </p>
         </div>
       ) : null}
@@ -170,7 +168,7 @@ export function BusinessPartnerApiPage() {
             <div className="card stack">
               <h2 className="profile-card-title">New key — copy now</h2>
               <p className="muted" style={{ margin: 0 }}>
-                This full token is shown once. Store it in your partner backend / secrets manager.
+                Shown once. Store it securely — it won’t appear again.
               </p>
               <code style={{ display: "block", wordBreak: "break-all", fontSize: 12 }}>{freshToken}</code>
               <div className="row" style={{ gap: 8 }}>
@@ -209,8 +207,7 @@ export function BusinessPartnerApiPage() {
               />
             </label>
             <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-              Sandbox keys never debit your live business wallet. Use them against the sandbox API host
-              (or dual mode in staging).
+              Sandbox keys (<code>gq_test_</code>) don’t debit your live wallet.
             </p>
             <button type="submit" className="btn-primary" disabled={saving}>
               {saving ? "Creating…" : "Create key"}
@@ -358,8 +355,7 @@ export function BusinessPartnerApiPage() {
         >
           <h2 className="profile-card-title">Webhook endpoint</h2>
           <p className="muted" style={{ margin: 0 }}>
-            GoQuick POSTs signed JSON when your jobs are created, assigned, updated, completed, or
-            cancelled. Verify <code>X-GoQuick-Signature</code> with your secret.
+            HTTPS URL for signed job updates. Copy the signing secret when shown.
           </p>
           {webhookSecret ? (
             <div className="stack">
