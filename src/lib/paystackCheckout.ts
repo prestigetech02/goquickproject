@@ -57,7 +57,7 @@ export function shortfallToFund(required: number, balance: number): number {
   return Math.max(1, gap);
 }
 
-export function isFundingCompleted(tx: WalletTransaction): boolean {
+export function isFundingCompleted(tx: Pick<WalletTransaction, "status"> | { status: string }): boolean {
   return String(tx.status).toLowerCase() === "completed";
 }
 
@@ -134,7 +134,8 @@ export async function completePaystackWalletFunding(opts: {
     callbackUrl?: string;
   }) => Promise<FundWalletResult>;
   verify: (reference: string) => Promise<{
-    transaction: WalletTransaction;
+    /** Org verify may return a slim transaction; only `status` is required. */
+    transaction: Pick<WalletTransaction, "status"> | { id?: number; status: string };
     wallet_balance: number;
   }>;
 }): Promise<{ wallet_balance: number; reference: string }> {
