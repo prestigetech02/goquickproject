@@ -168,7 +168,7 @@ export function BusinessPartnerApiPage() {
             <div className="card stack">
               <h2 className="profile-card-title">New key — copy now</h2>
               <p className="muted" style={{ margin: 0 }}>
-                Shown once. Store it securely — it won’t appear again.
+                Shown once — copy and store it now. If lost, revoke this key and create a new one.
               </p>
               <code style={{ display: "block", wordBreak: "break-all", fontSize: 12 }}>{freshToken}</code>
               <div className="row" style={{ gap: 8 }}>
@@ -217,24 +217,22 @@ export function BusinessPartnerApiPage() {
       ) : null}
 
       {!loading ? (
-        <ul className="saved-places-list">
+        <ul className="partner-api-key-list">
           {keys.length === 0 ? (
             <li className="muted" style={{ listStyle: "none" }}>
               No keys yet.
             </li>
           ) : (
             keys.map((key) => (
-              <li key={key.id} className="card saved-place-row">
-                <div>
+              <li key={key.id} className="card partner-api-key-row">
+                <div className="partner-api-key-main">
                   <strong>
                     {key.name}{" "}
                     <span className="muted" style={{ fontSize: 11, textTransform: "uppercase" }}>
                       {key.environment}
                     </span>
                   </strong>
-                  <p className="muted" style={{ margin: "4px 0 0", fontFamily: "monospace", fontSize: 12 }}>
-                    {key.masked_key}
-                  </p>
+                  <p className="muted partner-api-key-mask">{key.masked_key}</p>
                   <p className="muted" style={{ margin: "4px 0 0", fontSize: 12 }}>
                     {key.is_active ? "Active" : "Revoked"}
                     {key.ip_allowlist_enabled
@@ -251,7 +249,7 @@ export function BusinessPartnerApiPage() {
                         onChange={(e) => setEditingIps(e.target.value)}
                         placeholder="Clear = allow all IPs"
                       />
-                      <div className="row" style={{ gap: 8 }}>
+                      <div className="partner-api-key-actions">
                         <button
                           type="button"
                           className="btn-primary"
@@ -296,7 +294,7 @@ export function BusinessPartnerApiPage() {
                   ) : null}
                 </div>
                 {key.is_active ? (
-                  <div className="row" style={{ gap: 8 }}>
+                  <div className="partner-api-key-actions">
                     <button
                       type="button"
                       className="btn-ghost"
