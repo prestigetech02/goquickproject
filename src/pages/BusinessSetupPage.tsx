@@ -15,8 +15,6 @@ import {
 import { queryClient, queryKeys } from "../lib/queryClient";
 import { isProfileComplete, userOwnsBusiness, type User } from "../types/api";
 
-type IdType = "nin" | "voters_card" | "passport" | "drivers_license";
-
 export function BusinessSetupPage() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -31,9 +29,7 @@ export function BusinessSetupPage() {
   const [city, setCity] = useState(existing?.city ?? "");
   const [state, setState] = useState(existing?.state ?? "");
   const [lga, setLga] = useState("");
-  const [idType, setIdType] = useState<IdType>("nin");
-  const [idNumber, setIdNumber] = useState("");
-  const [idDocument, setIdDocument] = useState<File | null>(null);
+  const [nin, setNin] = useState("");
   const [proofOfAddress, setProofOfAddress] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [kybError, setKybError] = useState<string | null>(null);
@@ -79,20 +75,8 @@ export function BusinessSetupPage() {
       toast.error("Business address, city, and state are required.");
       return;
     }
-    if (!lga.trim()) {
-      toast.error("Enter the LGA for your business address.");
-      return;
-    }
-    if (!idNumber.trim()) {
-      toast.error("Enter the director ID number.");
-      return;
-    }
-    if (idType === "nin" && idNumber.replace(/\D/g, "").length !== 11) {
+    if (nin.replace(/\D/g, "").length !== 11) {
       toast.error("NIN must be 11 digits.");
-      return;
-    }
-    if (!idDocument) {
-      toast.error("Upload a clear photo/PDF of the director’s national ID.");
       return;
     }
     if (!proofOfAddress) {
@@ -134,10 +118,8 @@ export function BusinessSetupPage() {
       const kybPayload = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        lga: lga.trim(),
-        director_id_type: idType,
-        director_id_number: idNumber.trim(),
-        director_id_document: idDocument,
+        lga: lga.trim() || undefined,
+        director_id_number: nin.replace(/\D/g, ""),
         proof_of_address: proofOfAddress,
       };
 
@@ -177,7 +159,6 @@ export function BusinessSetupPage() {
           "QoreID could not verify your documents.";
         setKybError(reason);
         setRetryOrgId(org?.id ?? ownedFailed);
-        setIdDocument(null);
         setProofOfAddress(null);
         toast.error(reason);
         return;
@@ -186,7 +167,7 @@ export function BusinessSetupPage() {
       clearSignupIntent();
       toast.success(
         orgRes.message ||
-          "Identity verified. Your business is pending GoQuick admin approval.",
+          "NIN verified. Your business is pending GoQuick admin approval.",
       );
       navigate("/", { replace: true });
     } catch (err) {
@@ -211,10 +192,9 @@ export function BusinessSetupPage() {
           payload.data?.kyb?.failure_reason ||
           payload.error?.message ||
           payload.message ||
-          "QoreID could not verify your documents.";
+          "QoreID could not verify this NIN.";
         setKybError(reason);
         setRetryOrgId(org?.id ?? retryOrgId);
-        setIdDocument(null);
         setProofOfAddress(null);
         toast.error(reason);
         return;
@@ -239,11 +219,11 @@ export function BusinessSetupPage() {
         ×
       </button>
       <img src="/goquick.png" alt="GoQuick" className="auth-logo" />
-      <h1>{isRetry ? "Reupload KYB documents" : "Set up your business"}</h1>
+      <h1>{isRetry ? "Retry KYB verification" : "Set up your business"}</h1>
       <p className="muted">
         {isRetry
-          ? "QoreID could not verify your previous submission. Upload clearer documents and try again. Your business stays pending until GoQuick approves."
-          : "Use this same account — no new phone number. We’ll verify the director’s ID and proof of address with QoreID before you continue. Admin approval is still required."}
+          ? "QoreID could not verify the NIN. Check the number and name, reupload proof of address, and try again. Your business stays pending until GoQuick approves."
+          : "Use this same account — no new phone number. We’ll verify the director’s NIN with QoreID. Proof of address is saved for admin review. Admin approval is still required."}
       </p>
 
       {kybError ? (
@@ -348,67 +328,32 @@ export function BusinessSetupPage() {
         ) : null}
 
         <div className="auth-field">
-          <label htmlFor="biz-lga">LGA</label>
+          <label htmlFor="biz-lga">
+            LGA <span className="muted">(optional)</span>
+          </label>
           <input
             id="biz-lga"
             value={lga}
             onChange={(e) => setLga(e.target.value)}
             placeholder="e.g. Ikeja"
-            required
           />
         </div>
 
         <hr style={{ border: 0, borderTop: "1px solid #e2e8e3", margin: "4px 0" }} />
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-          KYB verification (QoreID)
+          KYB — NIN via QoreID; proof of address for admin review
         </p>
 
         <div className="auth-field">
-          <label htmlFor="id-type">Director ID type</label>
-          <select
-            id="id-type"
-            value={idType}
-            onChange={(e) => setIdType(e.target.value as IdType)}
-            required
-          >
-            <option value="nin">National ID (NIN) — recommended</option>
-            <option value="voters_card">Voter’s card</option>
-            <option value="passport">International passport</option>
-            <option value="drivers_license">Driver’s licence</option>
-          </select>
-        </div>
-
-        <div className="auth-field">
-          <label htmlFor="id-number">
-            {idType === "nin" ? "NIN (11 digits)" : "ID number"}
-          </label>
+          <label htmlFor="nin">Director NIN (11 digits)</label>
           <input
-            id="id-number"
-            value={idNumber}
-            onChange={(e) =>
-              setIdNumber(
-                idType === "nin" ? e.target.value.replace(/\D/g, "").slice(0, 11) : e.target.value,
-              )
-            }
-            placeholder={idType === "nin" ? "12345678901" : "As printed on the ID"}
+            id="nin"
+            value={nin}
+            onChange={(e) => setNin(e.target.value.replace(/\D/g, "").slice(0, 11))}
+            placeholder="12345678901"
+            inputMode="numeric"
             required
           />
-        </div>
-
-        <div className="auth-field">
-          <label htmlFor="id-doc">Director ID document (JPG, PNG, or PDF)</label>
-          <input
-            id="id-doc"
-            type="file"
-            accept="image/jpeg,image/png,application/pdf"
-            onChange={(e) => setIdDocument(e.target.files?.[0] ?? null)}
-            required={!idDocument}
-          />
-          {idDocument ? (
-            <span className="muted" style={{ fontSize: 12 }}>
-              Selected: {idDocument.name}
-            </span>
-          ) : null}
         </div>
 
         <div className="auth-field">
@@ -426,16 +371,16 @@ export function BusinessSetupPage() {
             </span>
           ) : null}
           <span className="muted" style={{ fontSize: 12 }}>
-            Utility bill, lease, or bank letter showing the business address.
+            Utility bill, lease, or bank letter — stored for GoQuick admin review (not sent to QoreID).
           </span>
         </div>
 
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading
-            ? "Verifying with QoreID…"
+            ? "Verifying NIN with QoreID…"
             : isRetry
-              ? "Reupload & verify"
-              : "Create business & verify KYB"}
+              ? "Retry NIN & reupload proof"
+              : "Create business & verify NIN"}
         </button>
       </form>
     </div>

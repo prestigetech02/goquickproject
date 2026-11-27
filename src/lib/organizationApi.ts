@@ -12,10 +12,10 @@ export type CreateOrganizationPayload = {
   contact_phone?: string;
   first_name: string;
   last_name: string;
-  lga: string;
-  director_id_type: "nin" | "voters_card" | "passport" | "drivers_license" | string;
+  lga?: string;
+  /** 11-digit NIN — sent to QoreID (no ID file upload). */
   director_id_number: string;
-  director_id_document: File;
+  /** Stored for admin review only — not sent to QoreID. */
   proof_of_address: File;
 };
 
@@ -70,10 +70,8 @@ function toOrganizationFormData(payload: CreateOrganizationPayload): FormData {
   if (payload.contact_phone) form.append("contact_phone", payload.contact_phone);
   form.append("first_name", payload.first_name);
   form.append("last_name", payload.last_name);
-  form.append("lga", payload.lga);
-  form.append("director_id_type", payload.director_id_type);
+  if (payload.lga) form.append("lga", payload.lga);
   form.append("director_id_number", payload.director_id_number);
-  form.append("director_id_document", payload.director_id_document);
   form.append("proof_of_address", payload.proof_of_address);
   return form;
 }
@@ -92,10 +90,8 @@ export async function resubmitOrganizationKyb(
   const form = new FormData();
   form.append("first_name", payload.first_name);
   form.append("last_name", payload.last_name);
-  form.append("lga", payload.lga);
-  form.append("director_id_type", payload.director_id_type);
+  if (payload.lga) form.append("lga", payload.lga);
   form.append("director_id_number", payload.director_id_number);
-  form.append("director_id_document", payload.director_id_document);
   form.append("proof_of_address", payload.proof_of_address);
 
   const { data } = await http.post<ApiResponse<OrganizationKybResult>>(
